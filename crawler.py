@@ -29,13 +29,15 @@ def does_domain_exist(domain):
 
 def store_data(site_id, website = None, images = None, documents = None, urls = None, is_binary = False, duplicate_link = None):
     # update current website page record (use site_id
-    url = "one from urls"
+
+    url = "for each url from urls"
+    # if url is blocked by robots.txt then dont add it
     domain = parse_domain(url)
     if not does_domain_exist(domain):
         # create new domain in site table
         # parse robots.txt if it exists
         pass
-    # add website to page table
+    # add website to page table, add links from current page to next page
 
 def get_next_url():
     # take next page from pages table marked with frontier code order by accessed_time
