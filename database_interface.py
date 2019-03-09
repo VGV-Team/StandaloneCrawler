@@ -93,6 +93,11 @@ class DatabaseInterface:
                 conn.close()
         return id
 
+    def find_domain(self, domain):
+        sql = """select id, domain from crawldb.site WHERE domain = %s;"""
+        result = self.execute_select_sql(sql, [domain])
+        return result
+
     def get_all_domains(self):
         sql = """select id, domain from crawldb.site;"""
         return self.execute_select_sql(sql, ())

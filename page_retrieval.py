@@ -2,6 +2,10 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
+from database_interface import DatabaseInterface
+import constants
+import time
 import traceback
 
 FRONTIER = ["http://evem.gov.si",
@@ -17,6 +21,11 @@ def init_selenium():
     options.add_argument("--headless")
     global driver
     driver = webdriver.Chrome(executable_path="webdriver/chromedriver.exe", options=options)
+
+
+def get_domain(url):
+    parse = urlparse(url)
+    return parse.hostname
 
 
 def get_next_url():
@@ -73,9 +82,26 @@ def find_website_duplicate(url, website):
     # check if URL is already in a frontier
     return "duplicate url or None"
 
+# temporary, for testing purposes
+def initialize_database(db):
+    # TODO: clean database
+    #db.clean()
+    global FRONTIER
+    for url in FRONTIER:
+        domain = get_domain(url)
+        domain_id = db.add_domain(domain, constants.DATABASE_NULL, constants.DATABASE_NULL)
+        db.add_page(domain_id, url, time.time())
+    FRONTIER = []
 
 if __name__ == "__main__":
+
+    db = DatabaseInterface()
+    initialize_database(db)
+
+'''
     try:
+
+
         for i in range(100):
             print("Step", i, "; FRONTIER size:", len(FRONTIER))
             url, site_id = get_next_url()
@@ -90,3 +116,4 @@ if __name__ == "__main__":
         traceback.print_exc()
         if driver is not None:
             driver.close()
+'''
