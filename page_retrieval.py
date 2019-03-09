@@ -56,7 +56,7 @@ def download_website(url):
     # for a in aTags:
     #    print(a.get_attribute("href"))
 
-    return driver.page_source
+    return driver.page_source, driver.current_url
 
 
 def extract_links(website):
@@ -64,35 +64,51 @@ def extract_links(website):
     a = html.find_all("a", href=True)
     links = []
     for link in a:
-        #print(link)
-        links.append(link["href"])
+        href = link["href"]
+        # filter empty links, anchor links and root links
+        if len(href) > 0 and href[0] != "#" and href != "/":
+            links.append(href)
     return links
 
 
 # we need url to resolve relative links
-def add_to_frontier(links, url):
+def add_to_frontier(links, url, current_url):
     for link in links:
-        if link.startswith("http://") or link.startswith("https://"):
-            FRONTIER.append(link)
+        if not link.startswith("http://") and not link.startswith("https://"):
+            # link is relative link
+            absolute_link = current_url + "/" + link
         else:
-            pass
-            # TODO: kinda tricky... need to think about how to approach this - too many javascript redirects
-            # print(url + "/" + link)
+            # link is absolute link
+            absolute_link = link
 
+        # TODO: check for duplicate links
+
+        site_data = db.find_site(get_site(absolute_link))
+        if len(site_data) == 0:
+            # new site/domain; add site to db and page to frontier
+            new_site(absolute_link)
+        else:
+            # site exists in db, add page to frontier
+            site_id = site_data[0][0]
+            db.add_page(site_id=site_id, url=absolute_link, accessed_time=time.time())
 
 def find_website_duplicate(url, website):
     # check if URL is already in a frontier
     return "duplicate url or None"
+
+# creates new site(domain) and adds the page to frontier
+def new_site(url):
+    site = get_site(url)
+    # TODO: parse robots.txt and sitemap
+    site_id = db.add_site(site, constants.DATABASE_NULL, constants.DATABASE_NULL)
+    db.add_page(site_id, url, time.time())
 
 # temporary, for testing purposes
 def initialize_database(db):
     db.delete_all_data()
     global FRONTIER
     for url in FRONTIER:
-        site = get_site(url)
-        # TODO: parse robots.txt and sitemap
-        site_id = db.add_site(site, constants.DATABASE_NULL, constants.DATABASE_NULL)
-        db.add_page(site_id, url, time.time())
+        new_site(url)
     FRONTIER = []
 
 db = DatabaseInterface()
@@ -103,19 +119,16 @@ if __name__ == "__main__":
 
     try:
         for i in range(100):
-            print("Step", i, "; FRONTIER size:", len(FRONTIER))
+            print("Step", i)
             page_id, site_id, url = get_next_url()
             if page_id is None:
                 break
             print("URL:", url)
-            website = download_website(url)
-            # TODO: handle duplicate link
-            #duplicate_link = find_website_duplicate(url, website)
+            website, current_url = download_website(url)
             links = extract_links(website)
             print(links)
-            # TODO: parse links and add to database(sites, pages)/frontier
-            #add_to_frontier(links, url)
-            db.update_page_to_html(id=page_id, html_content="<html>placeholder</html>",http_status_code="400")
+            add_to_frontier(links, url, current_url)
+            db.update_page_to_html(id=page_id, html_content="<html>placeholder</html>", http_status_code="400")
     except:
         print("ERROR")
         traceback.print_exc()
