@@ -113,12 +113,12 @@ class DatabaseInterface:
             if conn is not None:
                 conn.close()
 
-    def find_domain(self, domain):
+    def find_site(self, domain):
         sql = """select id, domain from crawldb.site WHERE domain = %s;"""
         result = self.execute_select_sql(sql, [domain])
         return result
 
-    def get_all_domains(self):
+    def get_all_sites(self):
         sql = """select id, domain from crawldb.site;"""
         return self.execute_select_sql(sql, ())
 
@@ -130,7 +130,7 @@ class DatabaseInterface:
         sql = """select id, site_id, url from crawldb.page WHERE page_type_code=%s ORDER BY accessed_time LIMIT %s;"""
         return self.execute_select_sql(sql, (constants.PAGE_TYPE_CODE_FRONTIER, N))
 
-    def add_domain(self, domain, robots_content, sitemap_content):
+    def add_site(self, domain, robots_content, sitemap_content):
         sql = """INSERT INTO crawldb.site(domain, robots_content, sitemap_content) VALUES(%s, %s, %s) RETURNING id;"""
         return self.execute_insert_sql(sql, (domain, robots_content, sitemap_content))
 
