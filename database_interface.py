@@ -93,6 +93,26 @@ class DatabaseInterface:
                 conn.close()
         return id
 
+    def delete_all_data(self):
+        sql = """TRUNCATE crawldb.site, crawldb.page, crawldb.link, crawldb.image, crawldb.page_data"""
+        conn = None
+        try:
+            # connect to the PostgreSQL database
+            conn = psycopg2.connect(**self.config)
+            # create a new cursor
+            cur = conn.cursor()
+            # execute the TRUNCATE statement
+            cur.execute(sql, ())
+            # commit the changes to the database
+            conn.commit()
+            # close communication with the database
+            cur.close()
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+        finally:
+            if conn is not None:
+                conn.close()
+
     def get_all_domains(self):
         sql = """select id, domain from crawldb.site;"""
         return self.execute_select_sql(sql, ())
@@ -100,6 +120,10 @@ class DatabaseInterface:
     def get_all_pages(self):
         sql = """select id, site_id, url from crawldb.page;"""
         return self.execute_select_sql(sql, ())
+
+    def get_next_N_frontier(self, N):
+        sql = """select id, site_id, url from crawldb.page WHERE page_type_code=%s ORDER BY accessed_time LIMIT %s;"""
+        return self.execute_select_sql(sql, (constants.PAGE_TYPE_CODE_FRONTIER, N))
 
     def add_domain(self, domain, robots_content, sitemap_content):
         sql = """INSERT INTO crawldb.site(domain, robots_content, sitemap_content) VALUES(%s, %s, %s) RETURNING id;"""
