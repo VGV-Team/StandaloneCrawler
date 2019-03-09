@@ -23,18 +23,20 @@ def init_selenium():
     driver = webdriver.Chrome(executable_path="webdriver/chromedriver.exe", options=options)
 
 
-def get_domain(url):
+def get_site(url):
     parse = urlparse(url)
     return parse.hostname
 
 
 def get_next_url():
     # take next page from pages table marked with frontier code order by accessed_time
-    # return "next url from page table"
-    global FRONTIER
-    url = FRONTIER[0]
-    FRONTIER = FRONTIER[1:]
-    return url, 0
+    data = db.get_next_N_frontier(N=1)
+    # 0: id (page_id), 1: site_id (FK), 2: url
+    if len(data) > 0:
+        data = data[0]
+        return data[0], data[1], data[2]
+    else:
+        return None, None, None
 
 
 def download_website(url):
@@ -84,36 +86,38 @@ def find_website_duplicate(url, website):
 
 # temporary, for testing purposes
 def initialize_database(db):
-    # TODO: clean database
-    #db.clean()
+    db.delete_all_data()
     global FRONTIER
     for url in FRONTIER:
-        domain = get_domain(url)
-        domain_id = db.add_domain(domain, constants.DATABASE_NULL, constants.DATABASE_NULL)
-        db.add_page(domain_id, url, time.time())
+        site = get_site(url)
+        # TODO: parse robots.txt and sitemap
+        site_id = db.add_site(site, constants.DATABASE_NULL, constants.DATABASE_NULL)
+        db.add_page(site_id, url, time.time())
     FRONTIER = []
+
+db = DatabaseInterface()
 
 if __name__ == "__main__":
 
-    db = DatabaseInterface()
     initialize_database(db)
 
-'''
     try:
-
-
         for i in range(100):
             print("Step", i, "; FRONTIER size:", len(FRONTIER))
-            url, site_id = get_next_url()
+            page_id, site_id, url = get_next_url()
+            if page_id is None:
+                break
             print("URL:", url)
             website = download_website(url)
             # TODO: handle duplicate link
-            duplicate_link = find_website_duplicate(url, website)
+            #duplicate_link = find_website_duplicate(url, website)
             links = extract_links(website)
-            add_to_frontier(links, url)
+            print(links)
+            # TODO: parse links and add to database(sites, pages)/frontier
+            #add_to_frontier(links, url)
+            db.update_page_to_html(id=page_id, html_content="<html>placeholder</html>",http_status_code="400")
     except:
         print("ERROR")
         traceback.print_exc()
         if driver is not None:
             driver.close()
-'''
