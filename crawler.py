@@ -66,8 +66,6 @@ def main():
             images, documents, urls = extract_data(website)
         store_data(site_id, website, images, documents, urls, is_binary)
 
-# TODO: database class/object
-
 print("qwe")
 
 
