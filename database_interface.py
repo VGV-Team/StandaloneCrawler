@@ -146,8 +146,8 @@ class DatabaseInterface:
     def update_page_to_binary(self, id, http_status_code):
         self.update_page(id, constants.PAGE_TYPE_CODE_BINARY, constants.DATABASE_NULL, http_status_code)
 
-    def update_page_to_html(self, id, http_status_code):
-        self.update_page(id, constants.PAGE_TYPE_CODE_HTML, constants.DATABASE_NULL, http_status_code)
+    def update_page_to_html(self, id, html_content, http_status_code):
+        self.update_page(id, constants.PAGE_TYPE_CODE_HTML, html_content, http_status_code)
 
     def update_page_to_duplicate(self, id, http_status_code, duplicate_id):
         self.update_page(id, constants.PAGE_TYPE_CODE_DUPLICATE, constants.DATABASE_NULL, http_status_code)
