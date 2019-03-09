@@ -8,10 +8,10 @@ class DatabaseInterface:
 
     config = None
 
-    def __init__(self):
-        self.config = self.read_config()
+    def __init__(self, config_path='database/database.ini'):
+        self.config = self.read_config(filename=config_path)
 
-    def read_config(self, filename='database.ini', section='postgresql'):
+    def read_config(self, filename='database/database.ini', section='postgresql'):
         # create a parser
         parser = ConfigParser()
         # read config file
@@ -102,12 +102,12 @@ class DatabaseInterface:
         return self.execute_select_sql(sql, ())
 
     def add_domain(self, domain, robots_content, sitemap_content):
-        sql = """INSERT INTO crawldb.site(domain, robots_content, sitemap_content) VALUES(%s, %s, %s);"""
+        sql = """INSERT INTO crawldb.site(domain, robots_content, sitemap_content) VALUES(%s, %s, %s) RETURNING id;"""
         return self.execute_insert_sql(sql, (domain, robots_content, sitemap_content))
 
     def add_page(self, site_id, url, accessed_time):
         sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time) 
-                    VALUES(%s, %s, %s, to_timestamp(%s));"""
+                    VALUES(%s, %s, %s, to_timestamp(%s)) RETURNING id;"""
         return self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time))
 
     def update_page(self, id, page_type_code, html_content, http_status_code):
@@ -126,16 +126,15 @@ class DatabaseInterface:
 
     def add_image(self, page_id, filename, content_type, data, accessed_time):
         sql = """INSERT INTO crawldb.image(page_id, filename, content_type, data, accessed_time) 
-                    VALUES(%s, %s, %s, %s, %s);"""
+                    VALUES(%s, %s, %s, %s, %s) RETURNING id;"""
         return self.execute_insert_sql(sql, (page_id, filename, content_type, data, accessed_time))
 
     def add_page_data(self, page_id, data_type_code, data):
-        sql = """INSERT INTO crawldb.page_data(page_id, data_type_code, data) VALUES(%s, %s, %s);"""
+        sql = """INSERT INTO crawldb.page_data(page_id, data_type_code, data) VALUES(%s, %s, %s) RETURNING id;"""
         return self.execute_insert_sql(sql, (page_id, data_type_code, data))
 
     def add_link(self, site_id_from, site_id_to):
-        sql = """INSERT INTO crawldb.link(from_page, to_page) VALUES(%s, %s);"""
+        sql = """INSERT INTO crawldb.link(from_page, to_page) VALUES(%s, %s) RETURNING id;"""
         return self.execute_insert_sql(sql, (site_id_from, site_id_to))
-
 
 # todo: add additional attribute hash to page table
