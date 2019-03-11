@@ -67,34 +67,66 @@ def extract_links(website):
         href = link["href"]
         # filter empty links, anchor links and root links
         if len(href) > 0 and href[0] != "#" and href != "/":
-            links.append(href)
+            links.append(change_link_to_absolute(href))
     return links
+
+
+def extract_images(website):
+    html = BeautifulSoup(website, "html.parser")
+    a = html.find_all("img", src=True)
+    images = []
+    for image in a:
+        src = image["src"]
+        # filter empty links, anchor links and root links
+        if len(src) > 0 and src[0] != "#" and src != "/":
+            images.append(change_link_to_absolute(src))
+    return images
+
+
+def extract_documents(website):
+    html = BeautifulSoup(website, "html.parser")
+    a = html.find_all("a", href=True)
+    documents = []
+    for link in a:
+        href = link["href"]
+        # filter empty links, anchor links and root links
+        if len(href) > 0 and href[0] != "#" and href != "/" and \
+                href.upper().endswith((constants.DATA_TYPE_CODE_PDF, constants.DATA_TYPE_CODE_DOC,
+                               constants.DATA_TYPE_CODE_DOCX, constants.DATA_TYPE_CODE_PPT,
+                               constants.DATA_TYPE_CODE_PPTX)):
+            documents.append(change_link_to_absolute(href))
+    return documents
+
+
+def change_link_to_absolute(link):
+    if not link.startswith("http://") and not link.startswith("https://"):
+        # link is relative link
+        return current_url + "/" + link
+    else:
+        # TODO: This
+        # link is absolute link
+        return link
 
 
 # we need url to resolve relative links
 def add_to_frontier(links, url, current_url):
     for link in links:
-        if not link.startswith("http://") and not link.startswith("https://"):
-            # link is relative link
-            absolute_link = current_url + "/" + link
-        else:
-            # link is absolute link
-            absolute_link = link
-
         # TODO: check for duplicate links
 
-        site_data = db.find_site(get_site(absolute_link))
+        site_data = db.find_site(get_site(link))
         if len(site_data) == 0:
             # new site/domain; add site to db and page to frontier
-            new_site(absolute_link)
+            new_site(link)
         else:
             # site exists in db, add page to frontier
             site_id = site_data[0][0]
-            db.add_page(site_id=site_id, url=absolute_link, accessed_time=time.time())
+            db.add_page(site_id=site_id, url=link, accessed_time=time.time())
+
 
 def find_website_duplicate(url, website):
     # check if URL is already in a frontier
     return "duplicate url or None"
+
 
 # creates new site(domain) and adds the page to frontier
 def new_site(url):
@@ -103,6 +135,7 @@ def new_site(url):
     site_id = db.add_site(site, constants.DATABASE_NULL, constants.DATABASE_NULL)
     db.add_page(site_id, url, time.time())
 
+
 # temporary, for testing purposes
 def initialize_database(db):
     db.delete_all_data()
@@ -110,6 +143,7 @@ def initialize_database(db):
     for url in FRONTIER:
         new_site(url)
     FRONTIER = []
+
 
 db = DatabaseInterface()
 
@@ -128,7 +162,25 @@ if __name__ == "__main__":
             links = extract_links(website)
             print(links)
             add_to_frontier(links, url, current_url)
+            # TODO: change this to get status code from request and HTML from content
             db.update_page_to_html(id=page_id, html_content="<html>placeholder</html>", http_status_code="400")
+
+            images = extract_images(website)
+            for image in images:
+                print(image)
+                image_data, image_url = download_website(image)
+                # TODO: image type detection
+                db.add_image(page_id, image, "PNG", image_data, time.time())
+
+            documents = extract_documents(website)
+            for document in documents:
+                print(document)
+                document_data, document_url = download_website(document)
+                # TODO: document type detection
+                db.add_page_data(page_id, constants.DATA_TYPE_CODE_DOC, document_data)
+
+
+
     except:
         print("ERROR")
         traceback.print_exc()

@@ -1,7 +1,7 @@
 from configparser import ConfigParser
 import psycopg2
 
-import constants as constants
+import constants
 
 
 class DatabaseInterface:
@@ -155,7 +155,7 @@ class DatabaseInterface:
 
     def add_image(self, page_id, filename, content_type, data, accessed_time):
         sql = """INSERT INTO crawldb.image(page_id, filename, content_type, data, accessed_time) 
-                    VALUES(%s, %s, %s, %s, %s) RETURNING id;"""
+                    VALUES(%s, %s, %s, %s, to_timestamp(%s)) RETURNING id;"""
         return self.execute_insert_sql(sql, (page_id, filename, content_type, data, accessed_time))
 
     def add_page_data(self, page_id, data_type_code, data):
