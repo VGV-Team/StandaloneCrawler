@@ -7,6 +7,7 @@ from database_interface import DatabaseInterface
 import constants
 import time
 import traceback
+import requests
 
 FRONTIER = ["http://evem.gov.si",
             "http://e-uprava.gov.si",
@@ -46,6 +47,10 @@ def download_website(url):
     if driver is None:
         init_selenium()
     driver.get(url)
+
+    # for status code
+    request = requests.get(url)
+
     # print(driver.page_source)
 
     # we might need this - it executes every script on the page (or a specific one should we select it)
@@ -56,10 +61,13 @@ def download_website(url):
     # for a in aTags:
     #    print(a.get_attribute("href"))
 
-    return driver.page_source, driver.current_url
+    return driver.page_source, driver.current_url, request.status_code
 
 
-def extract_links(website):
+def extract_links(website, current_url):
+    # TODO: include links from href attributes and onclick Javascript events (e.g. location.href or document.location)
+    # uglavnm to z javaskriptom je treba zrihtat
+    # TODO: linki ki se koncajo npr. s .doc grejo v frontier - to najbrz ni dobr? to se nesme zgodit
     html = BeautifulSoup(website, "html.parser")
     a = html.find_all("a", href=True)
     links = []
@@ -67,11 +75,11 @@ def extract_links(website):
         href = link["href"]
         # filter empty links, anchor links and root links
         if len(href) > 0 and href[0] != "#" and href != "/":
-            links.append(change_link_to_absolute(href))
+            links.append(change_link_to_absolute(href, current_url))
     return links
 
 
-def extract_images(website):
+def extract_images(website, current_url):
     html = BeautifulSoup(website, "html.parser")
     a = html.find_all("img", src=True)
     images = []
@@ -79,11 +87,11 @@ def extract_images(website):
         src = image["src"]
         # filter empty links, anchor links and root links
         if len(src) > 0 and src[0] != "#" and src != "/":
-            images.append(change_link_to_absolute(src))
+            images.append(change_link_to_absolute(src, current_url))
     return images
 
 
-def extract_documents(website):
+def extract_documents(website, current_url):
     html = BeautifulSoup(website, "html.parser")
     a = html.find_all("a", href=True)
     documents = []
@@ -94,11 +102,11 @@ def extract_documents(website):
                 href.upper().endswith((constants.DATA_TYPE_CODE_PDF, constants.DATA_TYPE_CODE_DOC,
                                constants.DATA_TYPE_CODE_DOCX, constants.DATA_TYPE_CODE_PPT,
                                constants.DATA_TYPE_CODE_PPTX)):
-            documents.append(change_link_to_absolute(href))
+            documents.append(change_link_to_absolute(href, current_url))
     return documents
 
 
-def change_link_to_absolute(link):
+def change_link_to_absolute(link, current_url):
     if not link.startswith("http://") and not link.startswith("https://"):
         # link is relative link
         return current_url + "/" + link
@@ -109,7 +117,7 @@ def change_link_to_absolute(link):
 
 
 # we need url to resolve relative links
-def add_to_frontier(links, url, current_url):
+def add_to_frontier(links, url):
     for link in links:
         # TODO: check for duplicate links
 
@@ -158,29 +166,29 @@ if __name__ == "__main__":
             if page_id is None:
                 break
             print("URL:", url)
-            website, current_url = download_website(url)
-            links = extract_links(website)
+            website, current_url, status_code = download_website(url)
+            if status_code >= 400:
+                db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
+                continue
+            links = extract_links(website, current_url)
             print(links)
-            add_to_frontier(links, url, current_url)
-            # TODO: change this to get status code from request and HTML from content
-            db.update_page_to_html(id=page_id, html_content="<html>placeholder</html>", http_status_code="400")
-
-            images = extract_images(website)
+            add_to_frontier(links, url)
+            db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
+            images = extract_images(website, current_url)
             for image in images:
                 print(image)
-                image_data, image_url = download_website(image)
+                image_data, image_url, status_code = download_website(image)
                 # TODO: image type detection
+                # TODO: not working if src contains raw binary data
+                # http://eugo.gov.si//data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMsAAABvCAYA ...
                 db.add_image(page_id, image, "PNG", image_data, time.time())
 
-            documents = extract_documents(website)
+            documents = extract_documents(website, current_url)
             for document in documents:
                 print(document)
-                document_data, document_url = download_website(document)
+                document_data, document_url, status_code = download_website(document)
                 # TODO: document type detection
                 db.add_page_data(page_id, constants.DATA_TYPE_CODE_DOC, document_data)
-
-
-
     except:
         print("ERROR")
         traceback.print_exc()
