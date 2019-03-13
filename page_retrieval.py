@@ -67,14 +67,14 @@ def download_website(url):
 def extract_links(website, current_url):
     # TODO: include links from href attributes and onclick Javascript events (e.g. location.href or document.location)
     # uglavnm to z javaskriptom je treba zrihtat
-    # TODO: linki ki se koncajo npr. s .doc grejo v frontier - to najbrz ni dobr? to se nesme zgodit
     html = BeautifulSoup(website, "html.parser")
     a = html.find_all("a", href=True)
     links = []
     for link in a:
         href = link["href"]
         # filter empty links, anchor links and root links
-        if len(href) > 0 and href[0] != "#" and href != "/":
+        if len(href) > 0 and href[0] != "#" and href != "/" and \
+                get_image_type(href) is constants.IMAGE_CONTENT_TYPE_UNKNOWN and get_document_type(url) is None:
             links.append(change_link_to_absolute(href, current_url))
     return links
 
@@ -99,9 +99,9 @@ def extract_documents(website, current_url):
         href = link["href"]
         # filter empty links, anchor links and root links
         if len(href) > 0 and href[0] != "#" and href != "/" and \
-                href.upper().endswith((constants.DATA_TYPE_CODE_PDF, constants.DATA_TYPE_CODE_DOC,
-                               constants.DATA_TYPE_CODE_DOCX, constants.DATA_TYPE_CODE_PPT,
-                               constants.DATA_TYPE_CODE_PPTX)):
+                href.upper().endswith(("."+constants.DATA_TYPE_CODE_PDF, "."+constants.DATA_TYPE_CODE_DOC,
+                                       "."+constants.DATA_TYPE_CODE_DOCX, "."+constants.DATA_TYPE_CODE_PPT,
+                                       "."+constants.DATA_TYPE_CODE_PPTX)):
             documents.append(change_link_to_absolute(href, current_url))
     return documents
 
@@ -153,6 +153,43 @@ def initialize_database(db):
     FRONTIER = []
 
 
+def get_image_type(url):
+    binary_src_start = url.find("data:image/")
+    if binary_src_start >= 0:  # image in URL
+        search_string = url[binary_src_start:binary_src_start+20].upper()
+        for type in (constants.IMAGE_CONTENT_TYPE_JPG, constants.IMAGE_CONTENT_TYPE_JPEG,
+                     constants.IMAGE_CONTENT_TYPE_PNG, constants.IMAGE_CONTENT_TYPE_GIF,
+                     constants.IMAGE_CONTENT_TYPE_TIFF, constants.IMAGE_CONTENT_TYPE_TIF,
+                     constants.IMAGE_CONTENT_TYPE_RAW):
+            if search_string.find(type) >= 0:
+                return type
+        return constants.IMAGE_CONTENT_TYPE_UNKNOWN
+    else:
+        res = list(filter(url.upper().endswith, ("." + constants.IMAGE_CONTENT_TYPE_JPG,
+                                                 "." + constants.IMAGE_CONTENT_TYPE_JPEG,
+                                                 "." + constants.IMAGE_CONTENT_TYPE_PNG,
+                                                 "." + constants.IMAGE_CONTENT_TYPE_GIF,
+                                                 "." + constants.IMAGE_CONTENT_TYPE_TIFF,
+                                                 "." + constants.IMAGE_CONTENT_TYPE_TIF,
+                                                 "." + constants.IMAGE_CONTENT_TYPE_RAW)))
+        if len(res) == 0:
+            return constants.IMAGE_CONTENT_TYPE_UNKNOWN
+        else:
+            return res[0].strip(".")
+
+
+def get_document_type(url):
+    res = list(filter(url.upper().endswith, ("."+constants.DATA_TYPE_CODE_PDF,
+                                                      "."+constants.DATA_TYPE_CODE_DOC,
+                                                      "."+constants.DATA_TYPE_CODE_DOCX,
+                                                      "."+constants.DATA_TYPE_CODE_PPT,
+                                                      "."+constants.DATA_TYPE_CODE_PPTX)))
+    if len(res) == 0:
+        return None
+    else:
+        return res[0].strip(".")
+
+
 db = DatabaseInterface()
 
 if __name__ == "__main__":
@@ -174,21 +211,21 @@ if __name__ == "__main__":
             print(links)
             add_to_frontier(links, url)
             db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
+
             images = extract_images(website, current_url)
             for image in images:
                 print(image)
                 image_data, image_url, status_code = download_website(image)
-                # TODO: image type detection
-                # TODO: not working if src contains raw binary data
-                # http://eugo.gov.si//data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMsAAABvCAYA ...
-                db.add_image(page_id, image, "PNG", image_data, time.time())
+                image_type = get_image_type(image_url)
+                db.add_image(page_id, image, image_type, image_data, time.time())
 
             documents = extract_documents(website, current_url)
             for document in documents:
                 print(document)
                 document_data, document_url, status_code = download_website(document)
-                # TODO: document type detection
-                db.add_page_data(page_id, constants.DATA_TYPE_CODE_DOC, document_data)
+                document_type = get_document_type(document_url)
+                if document_type is not None:
+                    db.add_page_data(page_id, document_type, document_data)
     except:
         print("ERROR")
         traceback.print_exc()
