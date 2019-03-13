@@ -1,10 +1,7 @@
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from urllib.parse import quote
-from urllib.parse import urlencode
 from database_interface import DatabaseInterface
 import constants
 import time
@@ -86,24 +83,28 @@ def download_website(url):
     # retrieve and render website content
     # consider failed websites
     # return "this is my website"
-    if driver is None:
-        init_selenium()
-    driver.get(url)
+    try:
+        if driver is None:
+            init_selenium()
+        driver.get(url)
 
-    # for status code
-    request = requests.get(url)
+        # for status code
+        request = requests.get(url)
 
-    # print(driver.page_source)
+        # print(driver.page_source)
 
-    # we might need this - it executes every script on the page (or a specific one should we select it)
-    # html = driver.execute_script("return document.getElementsByTagName('html')[0].innerHTML")
+        # we might need this - it executes every script on the page (or a specific one should we select it)
+        # html = driver.execute_script("return document.getElementsByTagName('html')[0].innerHTML")
 
-    # maybe useful...
-    # aTags = driver.find_elements_by_css_selector("li a")
-    # for a in aTags:
-    #    print(a.get_attribute("href"))
+        # maybe useful...
+        # aTags = driver.find_elements_by_css_selector("li a")
+        # for a in aTags:
+        #    print(a.get_attribute("href"))
 
-    return driver.page_source, driver.current_url, request.status_code
+        return driver.page_source, driver.current_url, request.status_code
+    except:
+        print("[Selenium] ERROR PARSING URL: ", url)
+        return None, None, None
 
 
 def extract_links(website, current_url):
@@ -197,9 +198,9 @@ def new_site(url):
 def initialize_database(db):
     db.delete_all_data()
     global FRONTIER
+    FRONTIER = [canonicalize(f) for f in FRONTIER]
     for url in FRONTIER:
         new_site(canonicalize(url))
-    FRONTIER = []
 
 
 def get_image_type(url):
@@ -255,6 +256,9 @@ if __name__ == "__main__":
                 break
             print("URL:", url)
             website, current_url, status_code = download_website(url)
+            if website is None:
+                db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL, http_status_code="408")
+                continue
             current_url = canonicalize(current_url)
             if status_code >= 400:
                 db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
@@ -264,26 +268,29 @@ if __name__ == "__main__":
             add_to_frontier(links, url)
             db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
 
-            images = extract_images(website, current_url)
-            for image in images:
-                image = canonicalize(image)
-                print(image)
-                image_data, image_url, status_code = download_website(image)
-                image_type = get_image_type(image_url)
-                db.add_image(page_id, image, image_type, image_data, time.time())
+            # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
+            if canonicalize("http://"+get_site(url)) in FRONTIER or canonicalize("https://"+get_site(url)) in FRONTIER:
+                images = extract_images(website, current_url)
+                for image in images:
+                    image = canonicalize(image)
+                    print(image)
+                    image_data, image_url, status_code = download_website(image)
+                    if image_data is not None:
+                        image_type = get_image_type(image_url)
+                        db.add_image(page_id, image, image_type, image_data, time.time())
 
-            documents = extract_documents(website, current_url)
-            for document in documents:
-                document = canonicalize(document)
-                print(document)
-                document_data, document_url, status_code = download_website(document)
-                document_type = get_document_type(document_url)
-                if document_type is not None:
-                    db.add_page_data(page_id, document_type, document_data)
+                documents = extract_documents(website, current_url)
+                for document in documents:
+                    document = canonicalize(document)
+                    print(document)
+                    document_data, document_url, status_code = download_website(document)
+                    if document_data is not None:
+                        document_type = get_document_type(document_url)
+                        if document_type is not None:
+                            db.add_page_data(page_id, document_type, document_data)
         except:
-            print("ERROR EXTRACTING FROM URL: ", url)
+            print("FATAL ERROR: ", url)
             traceback.print_exc()
-            db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL, http_status_code="408")
 
     if driver is not None:
         driver.close()
