@@ -222,10 +222,10 @@ def get_image_type(url):
 
 def get_document_type(url):
     res = list(filter(url.upper().endswith, ("."+constants.DATA_TYPE_CODE_PDF,
-                                                      "."+constants.DATA_TYPE_CODE_DOC,
-                                                      "."+constants.DATA_TYPE_CODE_DOCX,
-                                                      "."+constants.DATA_TYPE_CODE_PPT,
-                                                      "."+constants.DATA_TYPE_CODE_PPTX)))
+                                            "."+constants.DATA_TYPE_CODE_DOC,
+                                            "."+constants.DATA_TYPE_CODE_DOCX,
+                                            "."+constants.DATA_TYPE_CODE_PPT,
+                                            "."+constants.DATA_TYPE_CODE_PPTX)))
     if len(res) == 0:
         return None
     else:
