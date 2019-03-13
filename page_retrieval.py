@@ -3,11 +3,15 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
+from urllib.parse import quote
+from urllib.parse import urlencode
 from database_interface import DatabaseInterface
 import constants
 import time
 import traceback
 import requests
+import re
+
 
 FRONTIER = ["http://evem.gov.si",
             "http://e-uprava.gov.si",
@@ -15,6 +19,37 @@ FRONTIER = ["http://evem.gov.si",
             "http://e-prostor.gov.si"]
 
 driver = None
+
+def canonicalize(url):
+    # remove default port number
+    url = url.replace(":80", "")
+    # remove anchors
+    url = url.split("#", 1)[0]
+    # remove current directory '.'
+    url = url.replace("/./", "/")
+    # remove parent directory (with parent)
+    url_parent = [r.start() for r in re.finditer("/../", url)]
+    all_slashes = [r.start() for r in re.finditer("/", url)]
+    replaces = []
+    for up in url_parent:
+        parent_slash = max([slash for slash in all_slashes if slash < up])
+        replaces.append(url[parent_slash:up]+"/..")
+    for r in replaces:
+        url = url.replace(r, "")
+    # add trailing slash if root or directory TODO: GET parameters and '.'
+    if url[-1] != "/" and (url.count("/") == 2 or url[-5:].count(".") == 0):
+        url += "/"
+    # remove anchor
+    url = url.split("#", 1)[0]
+    # remove default filename
+    if url.endswith("/index.html") or url.endswith("/index.php") or \
+            url.endswith("/index.htm") or url.endswith("/index"):
+        url = "/".join(url.split("/")[0:-1]) + "/"
+    # domain to lower case
+    url_split = url.split("/")
+    url = "/".join(url_split[0:2]) + "/" + url_split[2].lower() + "/" + "/".join(url_split[3:])
+    #print(url)
+    return url
 
 
 def init_selenium():
@@ -109,9 +144,16 @@ def extract_documents(website, current_url):
 def change_link_to_absolute(link, current_url):
     if not link.startswith("http://") and not link.startswith("https://"):
         # link is relative link
-        return current_url + "/" + link
+        # if have to remove a '/' else if don't have to add '/' else have to add '/'
+        if current_url[-1] == "/" and link[0] == "/":
+            link = link[1:]
+            slash = ""
+        elif current_url[-1] == "/" or link[0] == "/":
+            slash = ""
+        else:
+            slash = "/"
+        return current_url + slash + link
     else:
-        # TODO: This
         # link is absolute link
         return link
 
@@ -149,7 +191,7 @@ def initialize_database(db):
     db.delete_all_data()
     global FRONTIER
     for url in FRONTIER:
-        new_site(url)
+        new_site(canonicalize(url))
     FRONTIER = []
 
 
@@ -163,10 +205,12 @@ if __name__ == "__main__":
         for i in range(100):
             print("Step", i)
             page_id, site_id, url = get_next_url()
+            url = canonicalize(url)
             if page_id is None:
                 break
             print("URL:", url)
             website, current_url, status_code = download_website(url)
+            current_url = canonicalize(current_url)
             if status_code >= 400:
                 db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
                 continue
@@ -176,6 +220,7 @@ if __name__ == "__main__":
             db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
             images = extract_images(website, current_url)
             for image in images:
+                image = canonicalize(image)
                 print(image)
                 image_data, image_url, status_code = download_website(image)
                 # TODO: image type detection
@@ -185,6 +230,7 @@ if __name__ == "__main__":
 
             documents = extract_documents(website, current_url)
             for document in documents:
+                document = canonicalize(document)
                 print(document)
                 document_data, document_url, status_code = download_website(document)
                 # TODO: document type detection
@@ -194,3 +240,18 @@ if __name__ == "__main__":
         traceback.print_exc()
         if driver is not None:
             driver.close()
+
+    # cannonicalize() TEST
+    '''
+    canonicalize("http://cs.indiana.edu:80/")
+    canonicalize("http://cs.indiana.edu")
+    canonicalize("http://cs.indiana.edu/People")
+    canonicalize("http://cs.indiana.edu/faq.html#3")
+    canonicalize("http://cs.indiana.edu/a/./b/")
+    canonicalize("http://cs.indiana.edu/a/../b/")
+    canonicalize("http://cs.indiana.edu/a/./../b/")
+    canonicalize("http://cs.indiana.edu/index.html")
+    canonicalize("http://cs.indiana.edu/%7Efil/")
+    canonicalize("http://cs.indiana.edu/My File.htm")
+    canonicalize("http://CS.INDIANA.EDU/People")
+    '''
