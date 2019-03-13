@@ -52,6 +52,13 @@ def canonicalize(url):
     return url
 
 
+def filter_javascript_link(link):
+    if "javascript:" not in link:
+        return link
+    else:
+        return None
+
+
 def init_selenium():
     options = Options()
     options.add_argument("--headless")
@@ -108,7 +115,7 @@ def extract_links(website, current_url):
     for link in a:
         href = link["href"]
         # filter empty links, anchor links and root links
-        if len(href) > 0 and href[0] != "#" and href != "/" and \
+        if len(href) > 0 and href[0] != "#" and href != "/" and filter_javascript_link(href) is not None and \
                 get_image_type(href) is constants.IMAGE_CONTENT_TYPE_UNKNOWN and get_document_type(url) is None:
             links.append(change_link_to_absolute(href, current_url))
     return links
@@ -238,8 +245,9 @@ if __name__ == "__main__":
 
     initialize_database(db)
 
-    try:
-        for i in range(100):
+
+    for i in range(100):
+        try:
             print("Step", i)
             page_id, site_id, url = get_next_url()
             url = canonicalize(url)
@@ -272,11 +280,14 @@ if __name__ == "__main__":
                 document_type = get_document_type(document_url)
                 if document_type is not None:
                     db.add_page_data(page_id, document_type, document_data)
-    except:
-        print("ERROR")
-        traceback.print_exc()
-        if driver is not None:
-            driver.close()
+        except:
+            print("ERROR EXTRACTING FROM URL: ", url)
+            traceback.print_exc()
+            db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL, http_status_code="408")
+
+    if driver is not None:
+        driver.close()
+
 
     # cannonicalize() TEST
     '''
