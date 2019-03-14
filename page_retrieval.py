@@ -185,13 +185,40 @@ def find_website_duplicate(url, website):
     # check if URL is already in a frontier
     return "duplicate url or None"
 
+def get_robots_txt(url):
+    if url.endswith("/") == False :
+        url = url + "/" 
+    r = requests.get(url + "robots.txt")
+    resp = r.text
+    if r.status_code == 200:
+        data = {"User-agent":[], "Disallow":[], "Allow":[], "Crawl-delay":[]}
+        sitemap = []
+        for line in resp.split("\n"):
+            if line.find("User-agent") != -1:
+                data["User-agent"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+            elif line.find("Disallow") != -1:
+                data["Disallow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+            elif line.find("Allow") != -1:
+                data["Allow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+            elif line.find("Crawl-delay") != -1:
+                data["Crawl-delay"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+            elif line.find("Sitemap") != -1:
+                sitemap.append(re.sub(r"[\n\t\s]*", "", line).split(":", 1)[1])
+        if len(sitemap) == 0 :
+            return str(data), constants.DATABASE_NULL
+        return str(data), sitemap
+    return constants.DATABASE_NULL, constants.DATABASE_NULL
 
 # creates new site(domain) and adds the page to frontier
 def new_site(url):
     site = get_site(url)
-    # TODO: parse robots.txt and sitemap
-    site_id = db.add_site(site, constants.DATABASE_NULL, constants.DATABASE_NULL)
+    #get robots.txt and parse it
+    robots, sitemap = get_robots_txt(url) #robots spremenimo nazaj v dict z eval()
+    site_id = db.add_site(site, robots, sitemap)
     db.add_page(site_id, url, time.time())
+    #add sitemap in frontier
+    if sitemap != constants.DATABASE_NULL:
+        add_to_frontier(sitemap, url)
 
 
 # temporary, for testing purposes
