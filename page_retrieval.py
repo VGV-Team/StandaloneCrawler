@@ -180,45 +180,64 @@ def change_link_to_absolute(link, current_url):
 # we need url to resolve relative links
 def add_to_frontier(links, url):
     for link in links:
-        # TODO: check for duplicate links
-
         site_data = db.find_site(get_site(link))
         if len(site_data) == 0:
             # new site/domain; add site to db and page to frontier
             new_site(link)
         else:
-            # site exists in db, add page to frontier
+            # site exists in db, check for duplicate links and add page to frontier
             site_id = site_data[0][0]
-            db.add_page(site_id=site_id, url=link, accessed_time=time.time())
+            duplicate = find_website_duplicate(link)
+            if duplicate == None:
+                db.add_page(site_id=site_id, url=link, accessed_time=time.time())
+            #else:
+                #TO DO: dodaj duplikat v bazo
+                #db.add_duplicated_page(site_id=site_id, url=link, accessed_time=time.time())
 
 
-def find_website_duplicate(url, website):
-    # check if URL is already in a frontier
-    return "duplicate url or None"
+# check if URL is already in a frontier
+def find_website_duplicate(url):
+    url1 = url
+    url2 = ""
+    if url.find("www") != -1:
+        tmp = url.split("://www")
+        url2 = tmp[0]+"://"+tmp[1]
+    else:
+        tmp = url.split("://")
+        url2 = tmp[0]+"://www"+tmp[1]
+    ids = db.get_duplicated_pages(url1, url2)
+    if len(ids) == 0:
+        return None
+    return ids[0]
+
 
 def get_robots_txt(url):
     if url.endswith("/") == False :
-        url = url + "/" 
-    r = requests.get(url + "robots.txt")
-    resp = r.text
-    if r.status_code == 200:
-        data = {"User-agent":[], "Disallow":[], "Allow":[], "Crawl-delay":[]}
-        sitemap = []
-        for line in resp.split("\n"):
-            if line.find("User-agent") != -1:
-                data["User-agent"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-            elif line.find("Disallow") != -1:
-                data["Disallow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-            elif line.find("Allow") != -1:
-                data["Allow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-            elif line.find("Crawl-delay") != -1:
-                data["Crawl-delay"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-            elif line.find("Sitemap") != -1:
-                sitemap.append(re.sub(r"[\n\t\s]*", "", line).split(":", 1)[1])
-        if len(sitemap) == 0 :
-            return str(data), constants.DATABASE_NULL
-        return str(data), sitemap
+        url = url + "/"
+    try: 
+        r = requests.get(url + "robots.txt")
+        resp = r.text
+        if r.status_code <400:
+            data = {"User-agent":[], "Disallow":[], "Allow":[], "Crawl-delay":[]}
+            sitemap = []
+            for line in resp.split("\n"):
+                if line.find("User-agent") != -1:
+                    data["User-agent"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                elif line.find("Disallow") != -1:
+                    data["Disallow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                elif line.find("Allow") != -1:
+                    data["Allow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                elif line.find("Crawl-delay") != -1:
+                    data["Crawl-delay"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                elif line.find("Sitemap") != -1:
+                    sitemap.append(re.sub(r"[\n\t\s]*", "", line).split(":", 1)[1])
+            if len(sitemap) == 0 :
+                return str(data), constants.DATABASE_NULL
+            return str(data), sitemap
+    except requests.exceptions.RequestException as e:
+        return constants.DATABASE_NULL, constants.DATABASE_NULL  
     return constants.DATABASE_NULL, constants.DATABASE_NULL
+
 
 # creates new site(domain) and adds the page to frontier
 def new_site(url):
