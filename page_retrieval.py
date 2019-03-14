@@ -119,6 +119,15 @@ def extract_links(website, current_url):
         if len(href) > 0 and href[0] != "#" and href != "/" and filter_javascript_link(href) is not None and \
                 get_image_type(href) is constants.IMAGE_CONTENT_TYPE_UNKNOWN and get_document_type(url) is None:
             links.append(change_link_to_absolute(href, current_url))
+    # check a tags with onclick events
+    a = html.find_all("a", onclick=True)
+    for link in a:
+        onclick = link["onclick"]
+        print(onclick)
+        result = re.search(".*location.href=[\s]*['\"](.*)['\"][\s]*[;].*", a)
+        if result is not None:
+            print("onclick JS URL found: ", result.group(1))
+            links.append(result.group(1))
     return links
 
 
@@ -212,13 +221,14 @@ def get_robots_txt(url):
 # creates new site(domain) and adds the page to frontier
 def new_site(url):
     site = get_site(url)
-    #get robots.txt and parse it
-    robots, sitemap = get_robots_txt(url) #robots spremenimo nazaj v dict z eval()
-    site_id = db.add_site(site, robots, sitemap)
-    db.add_page(site_id, url, time.time())
-    #add sitemap in frontier
-    if sitemap != constants.DATABASE_NULL:
-        add_to_frontier(sitemap, url)
+    if site.endswith(".gov.si") or site.endswith(".gov.si/"):
+        #get robots.txt and parse it
+        robots, sitemap = get_robots_txt(url) #robots spremenimo nazaj v dict z eval()
+        site_id = db.add_site(site, robots, sitemap)
+        db.add_page(site_id, url, time.time())
+        #add sitemap in frontier
+        if sitemap != constants.DATABASE_NULL:
+            add_to_frontier(sitemap, url)
 
 
 # temporary, for testing purposes
@@ -272,7 +282,6 @@ db = DatabaseInterface()
 if __name__ == "__main__":
 
     initialize_database(db)
-
 
     for i in range(100):
         try:
