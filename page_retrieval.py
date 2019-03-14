@@ -108,9 +108,11 @@ def download_website(url):
 
 
 def extract_links(website, current_url):
-    # TODO: include links from href attributes and onclick Javascript events (e.g. location.href or document.location)
-    # uglavnm to z javaskriptom je treba zrihtat
     html = BeautifulSoup(website, "html.parser")
+    base = html.find_all("base", href=True)
+    # base attribute specifies the 'base' url when constructing absolute links from relative paths
+    if base is not None and len(base) == 1:
+        current_url = base[0]["href"]
     a = html.find_all("a", href=True)
     links = []
     for link in a:
