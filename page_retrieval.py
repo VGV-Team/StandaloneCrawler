@@ -17,7 +17,7 @@ FRONTIER = ["http://evem.gov.si",
 
 driver = None
 
-def canonicalize(url):
+def canonicalize(url, ending_slash_check=True):
     # remove default port number
     url = url.replace(":80", "")
     # remove anchors
@@ -34,7 +34,7 @@ def canonicalize(url):
     for r in replaces:
         url = url.replace(r, "")
     # add trailing slash if root or directory TODO: GET parameters and '.'
-    if url[-1] != "/" and (url.count("/") == 2 or url[-5:].count(".") == 0):
+    if ending_slash_check and url[-1] != "/" and (url.count("/") == 2 or url[-5:].count(".") == 0):
         url += "/"
     # remove anchor
     url = url.split("#", 1)[0]
@@ -135,6 +135,10 @@ def extract_links(website, current_url):
 
 def extract_images(website, current_url):
     html = BeautifulSoup(website, "html.parser")
+    base = html.find_all("base", href=True)
+    # base attribute specifies the 'base' url when constructing absolute links from relative paths
+    if base is not None and len(base) == 1:
+        current_url = base[0]["href"]
     a = html.find_all("img", src=True)
     images = []
     for image in a:
@@ -147,6 +151,10 @@ def extract_images(website, current_url):
 
 def extract_documents(website, current_url):
     html = BeautifulSoup(website, "html.parser")
+    base = html.find_all("base", href=True)
+    # base attribute specifies the 'base' url when constructing absolute links from relative paths
+    if base is not None and len(base) == 1:
+        current_url = base[0]["href"]
     a = html.find_all("a", href=True)
     documents = []
     for link in a:
@@ -221,15 +229,15 @@ def get_robots_txt(url):
             data = {"User-agent":[], "Disallow":[], "Allow":[], "Crawl-delay":[]}
             sitemap = []
             for line in resp.split("\n"):
-                if line.find("User-agent") != -1:
+                if line.lower().find("user-agent") != -1:
                     data["User-agent"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.find("Disallow") != -1:
+                elif line.lower().find("disallow") != -1:
                     data["Disallow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.find("Allow") != -1:
+                elif line.lower().find("allow") != -1:
                     data["Allow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.find("Crawl-delay") != -1:
+                elif line.lower().find("crawl-delay") != -1:
                     data["Crawl-delay"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.find("Sitemap") != -1:
+                elif line.lower().find("sitemap") != -1:
                     sitemap.append(re.sub(r"[\n\t\s]*", "", line).split(":", 1)[1])
             if len(sitemap) == 0 :
                 return str(data), constants.DATABASE_NULL
@@ -320,7 +328,7 @@ if __name__ == "__main__":
             if canonicalize("http://"+get_site(url)) in FRONTIER or canonicalize("https://"+get_site(url)) in FRONTIER:
                 images = extract_images(website, current_url)
                 for image in images:
-                    image = canonicalize(image)
+                    image = canonicalize(image, ending_slash_check=False)
                     print(image)
                     image_data, image_url, status_code = download_website(image)
                     if image_data is not None:
@@ -329,7 +337,7 @@ if __name__ == "__main__":
 
                 documents = extract_documents(website, current_url)
                 for document in documents:
-                    document = canonicalize(document)
+                    document = canonicalize(document, ending_slash_check=False)
                     print(document)
                     document_data, document_url, status_code = download_website(document)
                     if document_data is not None:
