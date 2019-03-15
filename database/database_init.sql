@@ -26,6 +26,7 @@ CREATE TABLE crawldb.page (
 	html_content         text  ,
 	http_status_code     integer  ,
 	accessed_time        timestamp  ,
+	hash                 varchar(1024)  ,
 	CONSTRAINT pk_page_id PRIMARY KEY ( id ),
 	CONSTRAINT unq_url_idx UNIQUE ( url ) 
  );
@@ -33,6 +34,8 @@ CREATE TABLE crawldb.page (
 CREATE INDEX "idx_page_site_id" ON crawldb.page ( site_id );
 
 CREATE INDEX "idx_page_page_type_code" ON crawldb.page ( page_type_code );
+
+CREATE INDEX "idx_page_hash" ON crawldb.page ( hash );
 
 CREATE TABLE crawldb.page_data ( 
 	id                   serial  NOT NULL,

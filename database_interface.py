@@ -70,7 +70,7 @@ class DatabaseInterface:
                 conn.close()
         return updated_rows
 
-    def execute_insert_sql(self, sql, values):
+    def execute_insert_sql(self, sql, values, fetch_id=True):
         conn = None
         id = None
         try:
@@ -80,8 +80,9 @@ class DatabaseInterface:
             cur = conn.cursor()
             # execute the INSERT statement
             cur.execute(sql, values)
-            # get the generated id back
-            id = cur.fetchone()[0]
+            if fetch_id:
+                # get the generated id back
+                id = cur.fetchone()[0]
             # commit the changes to the database
             conn.commit()
             # close communication with the database
@@ -138,29 +139,29 @@ class DatabaseInterface:
         sql = """INSERT INTO crawldb.site(domain, robots_content, sitemap_content) VALUES(%s, %s, %s) RETURNING id;"""
         return self.execute_insert_sql(sql, (domain, robots_content, sitemap_content))
 
-    def add_page(self, site_id, url, accessed_time):
+    def add_page(self, site_id, url, accessed_time, from_id):
         sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time) 
                     VALUES(%s, %s, %s, to_timestamp(%s)) RETURNING id;"""
-        return self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time))
+        id = self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time))
+        if from_id is None:
+            self.add_link(id, id)
+        else:
+            self.add_link(from_id, id)
+        return id
 
-    #def add_duplicated_page(self, site_id, url, accessed_time):
-    #    sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time) 
-    #                VALUES(%s, %s, %s, to_timestamp(%s)) RETURNING id;"""
-    #    return self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_DUPLICATE, url, accessed_time))
-
-    def update_page(self, id, page_type_code, html_content, http_status_code):
-        sql = """UPDATE crawldb.page SET page_type_code = %s, html_content = %s, http_status_code = %s WHERE id = %s;"""
-        self.execute_update_sql(sql, (page_type_code, html_content, http_status_code, id))
+    def update_page(self, id, page_type_code, html_content, http_status_code, hash):
+        sql = """UPDATE crawldb.page SET page_type_code = %s, html_content = %s, 
+                    http_status_code = %s, hash = %s WHERE id = %s;"""
+        self.execute_update_sql(sql, (page_type_code, html_content, http_status_code, hash, id))
 
     def update_page_to_binary(self, id, http_status_code):
-        self.update_page(id, constants.PAGE_TYPE_CODE_BINARY, constants.DATABASE_NULL, http_status_code)
+        self.update_page(id, constants.PAGE_TYPE_CODE_BINARY, constants.DATABASE_NULL, http_status_code, None)
 
-    def update_page_to_html(self, id, html_content, http_status_code):
-        self.update_page(id, constants.PAGE_TYPE_CODE_HTML, html_content, http_status_code)
+    def update_page_to_html(self, id, html_content, http_status_code, hash):
+        self.update_page(id, constants.PAGE_TYPE_CODE_HTML, html_content, http_status_code, hash)
 
-    def update_page_to_duplicate(self, id, http_status_code, duplicate_id):
-        self.update_page(id, constants.PAGE_TYPE_CODE_DUPLICATE, constants.DATABASE_NULL, http_status_code)
-        self.add_link(id, duplicate_id)
+    def update_page_to_duplicate(self, id, http_status_code, hash):
+        self.update_page(id, constants.PAGE_TYPE_CODE_DUPLICATE, constants.DATABASE_NULL, http_status_code, hash)
 
     def add_image(self, page_id, filename, content_type, data, accessed_time):
         sql = """INSERT INTO crawldb.image(page_id, filename, content_type, data, accessed_time) 
@@ -172,7 +173,5 @@ class DatabaseInterface:
         return self.execute_insert_sql(sql, (page_id, data_type_code, data))
 
     def add_link(self, site_id_from, site_id_to):
-        sql = """INSERT INTO crawldb.link(from_page, to_page) VALUES(%s, %s) RETURNING id;"""
-        return self.execute_insert_sql(sql, (site_id_from, site_id_to))
-
-# todo: add additional attribute hash to page table
+        sql = """INSERT INTO crawldb.link(from_page, to_page) VALUES(%s, %s);"""
+        self.execute_insert_sql(sql, (site_id_from, site_id_to), False)

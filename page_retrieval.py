@@ -119,7 +119,7 @@ def extract_links(website, current_url):
         href = link["href"]
         # filter empty links, anchor links and root links
         if len(href) > 0 and href[0] != "#" and href != "/" and filter_javascript_link(href) is not None and \
-                get_image_type(href) is constants.IMAGE_CONTENT_TYPE_UNKNOWN and get_document_type(url) is None:
+                get_document_type(url) is None:
             links.append(change_link_to_absolute(href, current_url))
     # check a tags with onclick events
     a = html.find_all("a", onclick=True)
@@ -140,7 +140,7 @@ def extract_images(website, current_url):
     for image in a:
         src = image["src"]
         # filter empty links, anchor links and root links
-        if len(src) > 0 and src[0] != "#" and src != "/":
+        if len(src) > 0 and src[0] != "#" and src != "/" and src.find("data:image/") < 0:
             images.append(change_link_to_absolute(src, current_url))
     return images
 
@@ -178,18 +178,18 @@ def change_link_to_absolute(link, current_url):
 
 
 # we need url to resolve relative links
-def add_to_frontier(links, url):
+def add_to_frontier(links, current_page_id):
     for link in links:
         site_data = db.find_site(get_site(link))
         if len(site_data) == 0:
             # new site/domain; add site to db and page to frontier
-            new_site(link)
+            new_site(link, current_page_id)
         else:
             # site exists in db, check for duplicate links and add page to frontier
             site_id = site_data[0][0]
             duplicate = find_website_duplicate(link)
             if duplicate == None:
-                db.add_page(site_id=site_id, url=link, accessed_time=time.time())
+                db.add_page(site_id=site_id, url=link, accessed_time=time.time(), from_id=current_page_id)
             #else:
                 #TO DO: dodaj duplikat v bazo
                 #db.add_duplicated_page(site_id=site_id, url=link, accessed_time=time.time())
@@ -240,16 +240,16 @@ def get_robots_txt(url):
 
 
 # creates new site(domain) and adds the page to frontier
-def new_site(url):
+def new_site(url, current_page_id):
     site = get_site(url)
     if site.endswith(".gov.si") or site.endswith(".gov.si/"):
         #get robots.txt and parse it
         robots, sitemap = get_robots_txt(url) #robots spremenimo nazaj v dict z eval()
         site_id = db.add_site(site, robots, sitemap)
-        db.add_page(site_id, url, time.time())
+        page_id = db.add_page(site_id, url, time.time(), current_page_id)
         #add sitemap in frontier
         if sitemap != constants.DATABASE_NULL:
-            add_to_frontier(sitemap, url)
+            add_to_frontier(sitemap, page_id)
 
 
 # temporary, for testing purposes
@@ -258,32 +258,21 @@ def initialize_database(db):
     global FRONTIER
     FRONTIER = [canonicalize(f) for f in FRONTIER]
     for url in FRONTIER:
-        new_site(canonicalize(url))
+        new_site(canonicalize(url), None)
 
 
 def get_image_type(url):
-    binary_src_start = url.find("data:image/")
-    if binary_src_start >= 0:  # image in URL
-        search_string = url[binary_src_start:binary_src_start+20].upper()
-        for type in (constants.IMAGE_CONTENT_TYPE_JPG, constants.IMAGE_CONTENT_TYPE_JPEG,
-                     constants.IMAGE_CONTENT_TYPE_PNG, constants.IMAGE_CONTENT_TYPE_GIF,
-                     constants.IMAGE_CONTENT_TYPE_TIFF, constants.IMAGE_CONTENT_TYPE_TIF,
-                     constants.IMAGE_CONTENT_TYPE_RAW):
-            if search_string.find(type) >= 0:
-                return type
+    res = list(filter(url.upper().endswith, ("." + constants.IMAGE_CONTENT_TYPE_JPG,
+                                             "." + constants.IMAGE_CONTENT_TYPE_JPEG,
+                                             "." + constants.IMAGE_CONTENT_TYPE_PNG,
+                                             "." + constants.IMAGE_CONTENT_TYPE_GIF,
+                                             "." + constants.IMAGE_CONTENT_TYPE_TIFF,
+                                             "." + constants.IMAGE_CONTENT_TYPE_TIF,
+                                             "." + constants.IMAGE_CONTENT_TYPE_RAW)))
+    if len(res) == 0:
         return constants.IMAGE_CONTENT_TYPE_UNKNOWN
     else:
-        res = list(filter(url.upper().endswith, ("." + constants.IMAGE_CONTENT_TYPE_JPG,
-                                                 "." + constants.IMAGE_CONTENT_TYPE_JPEG,
-                                                 "." + constants.IMAGE_CONTENT_TYPE_PNG,
-                                                 "." + constants.IMAGE_CONTENT_TYPE_GIF,
-                                                 "." + constants.IMAGE_CONTENT_TYPE_TIFF,
-                                                 "." + constants.IMAGE_CONTENT_TYPE_TIF,
-                                                 "." + constants.IMAGE_CONTENT_TYPE_RAW)))
-        if len(res) == 0:
-            return constants.IMAGE_CONTENT_TYPE_UNKNOWN
-        else:
-            return res[0].strip(".")
+        return res[0].strip(".")
 
 
 def get_document_type(url):
@@ -313,17 +302,19 @@ if __name__ == "__main__":
                 break
             print("URL:", url)
             website, current_url, status_code = download_website(url)
+            hash = "placeholder"  # TODO: this
             if website is None:
-                db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL, http_status_code="408")
+                db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL,
+                                       http_status_code="408", hash=hash)
                 continue
             current_url = canonicalize(current_url)
             if status_code >= 400:
-                db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
+                db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=hash)
                 continue
             links = extract_links(website, current_url)
             print(links)
-            add_to_frontier(links, url)
-            db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code)
+            add_to_frontier(links, page_id)
+            db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=hash)
 
             # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
             if canonicalize("http://"+get_site(url)) in FRONTIER or canonicalize("https://"+get_site(url)) in FRONTIER:
