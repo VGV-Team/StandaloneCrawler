@@ -11,9 +11,9 @@ import re
 
 
 FRONTIER = ["http://evem.gov.si",
+            "http://e-prostor.gov.si",
             "http://e-uprava.gov.si",
-            "http://podatki.gov.si",
-            "http://e-prostor.gov.si"]
+            "http://podatki.gov.si"]
 
 driver = None
 
@@ -126,7 +126,7 @@ def extract_links(website, current_url):
     for link in a:
         onclick = link["onclick"]
         print(onclick)
-        result = re.search(".*location.href=[\s]*['\"](.*)['\"][\s]*[;].*", a)
+        result = re.search(".*location.href=[\s]*['\"](.*)['\"][\s]*[;].*", onclick)
         if result is not None:
             print("onclick JS URL found: ", result.group(1))
             links.append(result.group(1))
@@ -185,6 +185,50 @@ def change_link_to_absolute(link, current_url):
         return link
 
 
+def is_page_allowed(url, robots_content):
+    if robots_content == constants.DATABASE_NULL:
+        return True
+    robots_content = eval(robots_content)
+    allow = True
+    relative_url = url.split(get_site(url))[1]
+
+    # Check if relative url matches any Allow directive (used for subdirectories or files of disallowed directories)
+    # If true -> allow
+    # else -> check Disallow directives
+    for line in robots_content["Allow"]:
+        if line == relative_url:
+            return True
+        regex = "^" + line.replace("*", ".*") + "$"
+        if re.match(regex, relative_url) is not None:
+            return True
+
+    # Check if relative url matches and Disallow directive
+    # If true -> disallow
+    # else -> allow
+    for line in robots_content["Disallow"]:
+        regex = "^" + line.replace("*", ".*") + "$"
+        if re.match(regex, relative_url) is not None:
+            allow = False
+            break
+
+        if '*' == line[0] and ('*' == line[-1] or '/' == line[-1]):
+            if url.find(line[1:-1]) != -1:
+                allow = False
+                #print("throwin false in first if")
+                break
+        elif '*' == line[0]:
+            if url.endswith(line[1:]):
+                allow = False
+                #print("throwin false in second if")
+                break
+        elif '/' == line[0]:
+            if relative_url.startswith(line):
+                allow = False
+                #print("throwin false in third if")
+                break
+    return allow
+
+
 # we need url to resolve relative links
 def add_to_frontier(links, current_page_id):
     for link in links:
@@ -196,7 +240,8 @@ def add_to_frontier(links, current_page_id):
             # site exists in db, check for duplicate links and add page to frontier
             site_id = site_data[0][0]
             duplicate = find_website_duplicate(link)
-            if duplicate == None:
+            allowed = is_page_allowed(link, site_data[0][2])
+            if duplicate is None and allowed:
                 db.add_page(site_id=site_id, url=link, accessed_time=time.time(), from_id=current_page_id)
             #else:
                 #TO DO: dodaj duplikat v bazo
@@ -295,9 +340,11 @@ def get_document_type(url):
         return res[0].strip(".")
 
 
-db = DatabaseInterface()
+db = None
 
 if __name__ == "__main__":
+
+    db = DatabaseInterface()
 
     initialize_database(db)
 

@@ -115,7 +115,7 @@ class DatabaseInterface:
                 conn.close()
 
     def find_site(self, domain):
-        sql = """select id, domain from crawldb.site WHERE domain = %s;"""
+        sql = """select id, domain, robots_content from crawldb.site WHERE domain = %s;"""
         result = self.execute_select_sql(sql, [domain])
         return result
 
