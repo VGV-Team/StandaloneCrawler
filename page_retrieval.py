@@ -17,6 +17,7 @@ FRONTIER = ["http://evem.gov.si",
 
 driver = None
 
+
 def canonicalize(url, ending_slash_check=True):
     # remove default port number
     url = url.replace(":80", "")
@@ -196,6 +197,8 @@ def is_page_allowed(url, robots_content):
     # If true -> allow
     # else -> check Disallow directives
     for line in robots_content["Allow"]:
+        if len(line) == 0:
+            continue
         if line == relative_url:
             return True
         regex = "^" + line.replace("*", ".*") + "$"
@@ -206,6 +209,8 @@ def is_page_allowed(url, robots_content):
     # If true -> disallow
     # else -> allow
     for line in robots_content["Disallow"]:
+        if len(line) == 0:
+            continue
         regex = "^" + line.replace("*", ".*") + "$"
         if re.match(regex, relative_url) is not None:
             allow = False
@@ -273,22 +278,31 @@ def get_robots_txt(url):
         if r.status_code <400:
             data = {"User-agent":[], "Disallow":[], "Allow":[], "Crawl-delay":[]}
             sitemap = []
+            # TODO: some robots.txt files don't parse correctly. See https://github.com/VGV-Team/StandaloneCrawler/issues/23
+            # Added some code to only parse relevant robots.txt segments where User-agent == *
+            our_user_agent = False
             for line in resp.split("\n"):
                 if line.lower().find("user-agent") != -1:
-                    data["User-agent"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.lower().find("disallow") != -1:
-                    data["Disallow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.lower().find("allow") != -1:
-                    data["Allow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.lower().find("crawl-delay") != -1:
-                    data["Crawl-delay"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
-                elif line.lower().find("sitemap") != -1:
-                    sitemap.append(re.sub(r"[\n\t\s]*", "", line).split(":", 1)[1])
+                    ua = re.sub(r"[\n\t\s]*", "", line).split(":")[1]
+                    if ua == "*":
+                        data["User-agent"].append(ua)
+                        our_user_agent = True
+                    else:
+                        our_user_agent = False
+                if our_user_agent:
+                    if line.lower().find("disallow") != -1:
+                        data["Disallow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                    elif line.lower().find("allow") != -1:
+                        data["Allow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                    elif line.lower().find("crawl-delay") != -1:
+                        data["Crawl-delay"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                    elif line.lower().find("sitemap") != -1:
+                        sitemap.append(re.sub(r"[\n\t\s]*", "", line).split(":", 1)[1])
             if len(sitemap) == 0 :
                 return str(data), constants.DATABASE_NULL
             return str(data), sitemap
     except requests.exceptions.RequestException as e:
-        return constants.DATABASE_NULL, constants.DATABASE_NULL  
+        return constants.DATABASE_NULL, constants.DATABASE_NULL
     return constants.DATABASE_NULL, constants.DATABASE_NULL
 
 
@@ -299,7 +313,8 @@ def new_site(url, current_page_id):
         #get robots.txt and parse it
         robots, sitemap = get_robots_txt(url) #robots spremenimo nazaj v dict z eval()
         site_id = db.add_site(site, robots, sitemap)
-        page_id = db.add_page(site_id, url, time.time(), current_page_id)
+        if is_page_allowed(url, robots):
+            page_id = db.add_page(site_id, url, time.time(), current_page_id)
         #add sitemap in frontier
         if sitemap != constants.DATABASE_NULL:
             add_to_frontier(sitemap, page_id)
