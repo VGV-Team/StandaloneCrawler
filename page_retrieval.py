@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
+from urllib.request import urlopen
 from database_interface import DatabaseInterface
 import constants
 import time
@@ -302,7 +303,7 @@ class PageRetrieval:
                     # print("throwin false in third if")
                     break
         return allow
-
+    
     # we need url to resolve relative links
     def add_to_frontier(self, links, current_page_id):
         for link in links:
@@ -330,7 +331,7 @@ class PageRetrieval:
             url2 = tmp[0] + "://" + tmp[1]
         else:
             tmp = url.split("://")
-            url2 = tmp[0] + "://www" + tmp[1]
+            url2 = tmp[0] + "://www." + tmp[1]
         ids = self.db.get_duplicated_pages(url1, url2)
         if len(ids) == 0:
             return None
@@ -372,6 +373,32 @@ class PageRetrieval:
             return constants.DATABASE_NULL, constants.DATABASE_NULL
         return constants.DATABASE_NULL, constants.DATABASE_NULL
 
+    def read_sitemap(self, sitemap, url):
+        l = []
+        for i in sitemap:
+            try:
+                r = requests.get(i)
+                resp = r.text
+                if r.status_code == 200:
+                    s = BeautifulSoup(resp, 'lxml')
+                    for loc in s.findAll('loc'):
+                        #checking if url in sitemap == url
+                        if url.find("www") != -1:
+                            tmp = url.split("://www")
+                            url2 = tmp[0] + "://" + tmp[1]
+                            if loc.text != url2:
+                                l.append(loc.text)  
+                        else:
+                            tmp = url.split("://")
+                            url2 = tmp[0] + "://www." + tmp[1]
+                            print(loc.text)
+                            print(url2)
+                            if loc.text != url2:
+                                l.append(loc.text)  
+                    return l
+            except requests.exceptions.RequestException as e:
+                print("Can not fetch sitemap.")
+
     # creates new site(domain) and adds the page to frontier
     def new_site(self, url, current_page_id):
         site = self.get_site(url)
@@ -383,7 +410,8 @@ class PageRetrieval:
                 page_id = self.db.add_page(site_id, url, time.time(), current_page_id)
             # add sitemap in frontier
             if sitemap != constants.DATABASE_NULL:
-                self.add_to_frontier(sitemap, page_id)
+                l = self.read_sitemap(sitemap, url)
+                self.add_to_frontier(l, page_id)
 
     def get_image_type(self, url):
         res = list(filter(url.upper().endswith, ("." + constants.IMAGE_CONTENT_TYPE_JPG,
