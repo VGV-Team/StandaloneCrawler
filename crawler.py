@@ -1,72 +1,38 @@
-from page_retrieval import FRONTIER
-from page_retrieval import get_next_url
-from page_retrieval import download_website
-from page_retrieval import find_website_duplicate
+import threading
+import time
+from page_retrieval import PageRetrieval
+
+USE_MULTITHREADING = True
 
 
-def initialize_frontier():
-    # do initial parsing of frontier URLs
-    pass
+def crawler_thread(thread_name):
+    print("Starting:" + thread_name)
+    pr2 = PageRetrieval(thread_name, database_lock)
+    pr2.run()
+    print("Finishing:" + thread_name)
 
 
-def extract_data(website):
-    # extract web site content
-    documents = extract_documents(website)
-    return "images", documents, "urls"
+def run_threads(N):
+    try:
+        for i in range(N):
+            t = threading.Thread(target=crawler_thread, args=[("Thread-" + str(i))])
+            t.daemon = True  # set thread to daemon ('ok' won't be printed in this case)
+            t.start()
+    except:
+        print("Error: unable to start thread")
+
+    while 1:
+        print("Waiting")
+        time.sleep(1)
 
 
-def parse_domain(url):
-    # extract domain from url
-    return "website domain"
+database_lock = threading.Lock()
 
+db_init = PageRetrieval("init", database_lock)
+db_init.initialize_database()
 
-def does_domain_exist(domain):
-    # check if domain already exists
-    return True
-
-
-def store_data(site_id, website = None, images = None, documents = None, urls = None, is_binary = False, duplicate_link = None):
-    # update current website page record (use site_id
-
-    url = "for each url from urls"
-    # if url is blocked by robots.txt then dont add it
-    domain = parse_domain(url)
-    if not does_domain_exist(domain):
-        # create new domain in site table
-        # parse robots.txt if it exists
-        pass
-    # add website to page table, add links from current page to next page
-
-
-def is_website_binary(website):
-    # check if website is binary or HTML
-    return False
-
-
-def extract_documents(website):
-    # extract binary document(s) from website
-    return "extracted documents"
-
-
-def main():
-    url, site_id = get_next_url()
-    website = download_website(url)
-    link = find_website_duplicate(url, website)
-
-    if link is not None: # this means it is duplicate
-        store_data(site_id, duplicate_link=link)
-    else:
-        images = list()
-        urls = list()
-        is_binary = is_website_binary(website)
-        if is_binary:
-            # retrieve document and store it in appropriate table
-            documents = extract_documents(website)
-        else:
-            images, documents, urls = extract_data(website)
-        store_data(site_id, website, images, documents, urls, is_binary)
-
-print("qwe")
-
-
+if USE_MULTITHREADING:
+    run_threads(3)
+else:
+    db_init.run()
 
