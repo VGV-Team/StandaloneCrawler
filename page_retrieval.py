@@ -9,6 +9,8 @@ import time
 import traceback
 import requests
 import re
+import binascii
+import random
 
 class PageRetrieval:
     FRONTIER = ["http://evem.gov.si",
@@ -21,6 +23,14 @@ class PageRetrieval:
     name = None
     database_lock = None
 
+    len_of_shingle = 20
+    len_of_hash = 10
+    max_shingle_id = 2**32-1
+    next_prime = 4294967311
+
+    coeff_a = None
+    coeff_b = None
+    
     def __init__(self, thread_name, database_lock):
         self.name = thread_name
         self.database_lock = database_lock
@@ -51,11 +61,13 @@ class PageRetrieval:
                 if status_code >= 400:
                     self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code,
                                                 hash=hash)
+                    #find_duplicate = self.find_duplicate_content(website)
                     continue
                 links = self.extract_links(website, current_url)
                 print(self.name, links)
                 self.add_to_frontier(links, page_id)
-                self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=hash)
+                minHash = self.minHash_content(website)
+                self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
 
                 # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
                 if self.canonicalize("http://" + self.get_site(url)) in self.FRONTIER or self.canonicalize(
@@ -337,6 +349,26 @@ class PageRetrieval:
             return None
         return ids[0]
 
+    # List of k unique random values.
+    def random_coeffitients(self):
+        rand_list = [] 
+        for i in range(self.len_of_hash, 0, -1):
+            rand_index = random.randint(0, self.max_shingle_id)
+            while rand_index in rand_list:
+                rand_index = random.randint(0, self.max_shingle_id)
+            rand_list.append(rand_index)    
+        return rand_list
+    
+    def minHash_content(self, website):
+        #converting content of website to a set of shingles and hash each single
+        shingles = [binascii.crc32(website[i:i+self.len_of_shingle].encode('utf-8')) & 0xffffffff for i in range(len(website)-self.len_of_shingle+1)]
+        if self.coeff_a == None:
+            self.coeff_a = self.random_coeffitients()
+            self.coeff_b = self.random_coeffitients()
+        #generating minHash signature
+        signature = [min([((self.coeff_a[i] * j + self.coeff_b[i]) % self.next_prime) for j in shingles]) for i in range(self.len_of_hash)]
+        return signature
+
     def get_robots_txt(self, url):
         if url.endswith("/") == False:
             url = url + "/"
@@ -391,8 +423,6 @@ class PageRetrieval:
                         else:
                             tmp = url.split("://")
                             url2 = tmp[0] + "://www." + tmp[1]
-                            print(loc.text)
-                            print(url2)
                             if loc.text != url2:
                                 l.append(loc.text)  
                     return l
