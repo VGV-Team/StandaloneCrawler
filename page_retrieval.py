@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
+from urllib.request import urlopen
 from database_interface import DatabaseInterface
 import constants
 import time
@@ -10,7 +11,6 @@ import requests
 import re
 import binascii
 import random
-
 
 class PageRetrieval:
     FRONTIER = ["http://evem.gov.si",
@@ -37,13 +37,10 @@ class PageRetrieval:
 
     coeff_a = None
     coeff_b = None
-
-    stop_callback = None
     
     def __init__(self, thread_name, database_lock, stop_callback):
         self.name = thread_name
         self.database_lock = database_lock
-        self.stop_callback = stop_callback
         self.db = DatabaseInterface(database_lock)
 
     def initialize_database(self):
@@ -51,12 +48,11 @@ class PageRetrieval:
         self.FRONTIER = [self.canonicalize(f) for f in self.FRONTIER]
         for url in self.FRONTIER:
             self.new_site(self.canonicalize(url), None)
-        for url in self.FRONTIER_NEW:
-            self.new_site(self.canonicalize(url), None)
 
     def run(self):
-        while not self.stop_callback.is_set():
+         while not self.stop_callback.is_set():
             try:
+                #print(self.name, "Step", i)
                 page_id, site_id, url = self.get_next_url()
                 if page_id is None or site_id is None or url is None:
                     # if frontier is empty, wait a few seconds
@@ -71,12 +67,12 @@ class PageRetrieval:
                 hash = "placeholder"  # TODO: this
                 if website is None:
                     self.db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL,
-                                                http_status_code="408", hash=null)
+                                                http_status_code="408", hash=constants.DATABASE_NULL)
                     continue
                 current_url = self.canonicalize(current_url)
                 if status_code >= 400:
                     self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code,
-                                                hash=null)
+                                                hash=constants.DATABASE_NULL)
                     continue
                 minHash = self.minHash_content(website)
                 find_duplicate = self.find_duplicate_content(minHash)
@@ -84,6 +80,7 @@ class PageRetrieval:
                     self.db.update_page_to_duplicate(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
                     continue
                 links = self.extract_links(website, current_url)
+                #print(self.name, links)
                 self.add_to_frontier(links, page_id)
                 self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
 
@@ -93,6 +90,7 @@ class PageRetrieval:
                     images = self.extract_images(website, current_url)
                     for image in images:
                         image = self.canonicalize(image, ending_slash_check=False)
+                        #print(self.name, image)
                         image_data, image_url, status_code = self.download_website(image)
                         if image_data is not None:
                             image_type = self.get_image_type(image_url)
@@ -101,6 +99,7 @@ class PageRetrieval:
                     documents = self.extract_documents(website, current_url)
                     for document in documents:
                         document = self.canonicalize(document, ending_slash_check=False)
+                        #print(self.name, document)
                         document_data, document_url, status_code = self.download_website(document)
                         if document_data is not None:
                             document_type = self.get_document_type(document_url)
@@ -142,6 +141,7 @@ class PageRetrieval:
         # domain to lower case
         url_split = url.split("/")
         url = "/".join(url_split[0:2]) + "/" + url_split[2].lower() + "/" + "/".join(url_split[3:])
+        # print(url)
         return url
 
     def filter_javascript_link(self, link):
@@ -202,6 +202,7 @@ class PageRetrieval:
         a = html.find_all("a", onclick=True)
         for link in a:
             onclick = link["onclick"]
+            #print(self.name, onclick)
             result = re.search(".*location.href=[\s]*['\"](.*)['\"][\s]*[;].*", onclick)
             if result is not None:
                 print(self.name + " found onclick JS URL " + result.group(1))
@@ -377,7 +378,7 @@ class PageRetrieval:
                 our_user_agent = False
                 for line in resp.split("\n"):
                     if line.lower().find("user-agent") != -1:
-                        ua = re.sub(r"[\n\t\s]*", "", line).split(":")[1]
+                        ua = re.sub("[\n\t\s]", "", line).split(":")[1]
                         if ua == "*":
                             data["User-agent"].append(ua)
                             our_user_agent = True
@@ -385,13 +386,13 @@ class PageRetrieval:
                             our_user_agent = False
                     if our_user_agent:
                         if line.lower().find("disallow") != -1:
-                            data["Disallow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                            data["Disallow"].append(re.sub("[\n\t\s]", "", line).split(":")[1])
                         elif line.lower().find("allow") != -1:
-                            data["Allow"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                            data["Allow"].append(re.sub("[\n\t\s]", "", line).split(":")[1])
                         elif line.lower().find("crawl-delay") != -1:
-                            data["Crawl-delay"].append(re.sub(r"[\n\t\s]*", "", line).split(":")[1])
+                            data["Crawl-delay"].append(re.sub("[\n\t\s]", "", line).split(":")[1])
                         elif line.lower().find("sitemap") != -1:
-                            sitemap.append(re.sub(r"[\n\t\s]*", "", line).split(":", 1)[1])
+                            sitemap.append(re.sub("[\n\t\s]", "", line).split(":", 1)[1])
                 if len(sitemap) == 0:
                     return str(data), constants.DATABASE_NULL
                 return str(data), sitemap
