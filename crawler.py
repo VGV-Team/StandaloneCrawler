@@ -1,34 +1,47 @@
 import threading
-import time
 from page_retrieval import PageRetrieval
+import time
 
 USE_MULTITHREADING = True
 
+database_lock = threading.Lock()
+stop_callback = threading.Event()
+
+
+def should_process_run():
+    text = input()
+    if text == "quit":
+        return False
+    else:
+        return True
 
 def crawler_thread(thread_name):
     print("Starting:" + thread_name)
-    pr2 = PageRetrieval(thread_name, database_lock)
+    pr2 = PageRetrieval(thread_name, database_lock, stop_callback)
     pr2.run()
     print("Finishing:" + thread_name)
 
 
 def run_threads(N):
-    try:
-        for i in range(N):
+    for i in range(N):
+        try:
             t = threading.Thread(target=crawler_thread, args=[("Thread-" + str(i))])
-            t.daemon = True  # set thread to daemon ('ok' won't be printed in this case)
+            t.daemon = True
             t.start()
-    except:
-        print("Error: unable to start thread")
+        except:
+            print("Error: unable to start thread")
 
-    while 1:
-        #print("Waiting")
-        time.sleep(1)
+    print("All threads started, type 'quit' to finish.")
+    while should_process_run():
+        pass
+    stop_callback.set()
+    while threading.active_count() > 1:
+        print("Waiting for " + (threading.active_count() - 1) + " threads.")
+        time.sleep(5)
+    return
 
 
-database_lock = threading.Lock()
-
-db_init = PageRetrieval("init", database_lock)
+db_init = PageRetrieval("init", database_lock, stop_callback)
 db_init.initialize_database()
 
 if USE_MULTITHREADING:
@@ -36,3 +49,4 @@ if USE_MULTITHREADING:
 else:
     db_init.run()
 
+print("All threads finished.")
