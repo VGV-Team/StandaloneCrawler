@@ -158,6 +158,8 @@ class DatabaseInterface:
             sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time) 
                         VALUES(%s, %s, %s, to_timestamp(%s)) RETURNING id;"""
             id = self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time))
+            if id is None:
+                self.get
             if from_id is None:
                 self.add_link(id, id, True)
             else:

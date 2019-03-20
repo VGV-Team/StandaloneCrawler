@@ -45,8 +45,13 @@ class PageRetrieval:
     def run(self):
         for i in range(100):
             try:
-                print(self.name, "Step", i)
+                #print(self.name, "Step", i)
                 page_id, site_id, url = self.get_next_url()
+                if page_id is None or site_id is None or url is None:
+                    # if frontier is empty, wait a few seconds
+                    time.sleep(constants.CRAWLER_EMPTY_FRONTIER_SLEEP)
+                    print("Frontier empty, waiting...")
+                    continue
                 url = self.canonicalize(url)
                 if page_id is None:
                     break
@@ -64,7 +69,7 @@ class PageRetrieval:
                     #find_duplicate = self.find_duplicate_content(website)
                     continue
                 links = self.extract_links(website, current_url)
-                print(self.name, links)
+                #print(self.name, links)
                 self.add_to_frontier(links, page_id)
                 minHash = self.minHash_content(website)
                 self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
@@ -75,7 +80,7 @@ class PageRetrieval:
                     images = self.extract_images(website, current_url)
                     for image in images:
                         image = self.canonicalize(image, ending_slash_check=False)
-                        print(self.name, image)
+                        #print(self.name, image)
                         image_data, image_url, status_code = self.download_website(image)
                         if image_data is not None:
                             image_type = self.get_image_type(image_url)
@@ -84,7 +89,7 @@ class PageRetrieval:
                     documents = self.extract_documents(website, current_url)
                     for document in documents:
                         document = self.canonicalize(document, ending_slash_check=False)
-                        print(self.name, document)
+                        #print(self.name, document)
                         document_data, document_url, status_code = self.download_website(document)
                         if document_data is not None:
                             document_type = self.get_document_type(document_url)
@@ -97,20 +102,6 @@ class PageRetrieval:
         if self.driver is not None:
             self.driver.close()
 
-        # cannonicalize() TEST
-        '''
-        canonicalize("http://cs.indiana.edu:80/")
-        canonicalize("http://cs.indiana.edu")
-        canonicalize("http://cs.indiana.edu/People")
-        canonicalize("http://cs.indiana.edu/faq.html#3")
-        canonicalize("http://cs.indiana.edu/a/./b/")
-        canonicalize("http://cs.indiana.edu/a/../b/")
-        canonicalize("http://cs.indiana.edu/a/./../b/")
-        canonicalize("http://cs.indiana.edu/index.html")
-        canonicalize("http://cs.indiana.edu/%7Efil/")
-        canonicalize("http://cs.indiana.edu/My File.htm")
-        canonicalize("http://CS.INDIANA.EDU/People")
-        '''
 
     def canonicalize(self, url, ending_slash_check=True):
         # remove default port number
@@ -169,9 +160,7 @@ class PageRetrieval:
             return None, None, None
 
     def download_website(self, url):
-        # retrieve and render website content
-        # consider failed websites
-        # return "this is my website"
+
         try:
             if self.driver is None:
                 self.init_selenium()
@@ -179,16 +168,6 @@ class PageRetrieval:
 
             # for status code
             request = requests.get(url)
-
-            # print(driver.page_source)
-
-            # we might need this - it executes every script on the page (or a specific one should we select it)
-            # html = driver.execute_script("return document.getElementsByTagName('html')[0].innerHTML")
-
-            # maybe useful...
-            # aTags = driver.find_elements_by_css_selector("li a")
-            # for a in aTags:
-            #    print(a.get_attribute("href"))
 
             return self.driver.page_source, self.driver.current_url, request.status_code
         except:
@@ -213,7 +192,7 @@ class PageRetrieval:
         a = html.find_all("a", onclick=True)
         for link in a:
             onclick = link["onclick"]
-            print(self.name, onclick)
+            #print(self.name, onclick)
             result = re.search(".*location.href=[\s]*['\"](.*)['\"][\s]*[;].*", onclick)
             if result is not None:
                 print(self.name, "onclick JS URL found: ", result.group(1))
@@ -330,14 +309,10 @@ class PageRetrieval:
                 allowed = self.is_page_allowed(link, site_data[0][2])
                 if duplicate is None and allowed:
                     self.db.add_page(site_id=site_id, url=link, accessed_time=time.time(), from_id=current_page_id)
-                # else:
-                # TO DO: dodaj duplikat v bazo
-                # db.add_duplicated_page(site_id=site_id, url=link, accessed_time=time.time())
 
     # check if URL is already in a frontier
     def find_website_duplicate(self, url):
         url1 = url
-        url2 = ""
         if url.find("www") != -1:
             tmp = url.split("://www")
             url2 = tmp[0] + "://" + tmp[1]

@@ -22,7 +22,7 @@ def run_threads(N):
         print("Error: unable to start thread")
 
     while 1:
-        print("Waiting")
+        #print("Waiting")
         time.sleep(1)
 
 
@@ -32,7 +32,7 @@ db_init = PageRetrieval("init", database_lock)
 db_init.initialize_database()
 
 if USE_MULTITHREADING:
-    run_threads(3)
+    run_threads(10)
 else:
     db_init.run()
 
