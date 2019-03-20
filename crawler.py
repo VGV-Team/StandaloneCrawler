@@ -16,10 +16,10 @@ def should_process_run():
         return True
 
 def crawler_thread(thread_name):
-    print("Starting:" + thread_name)
+    print("Starting: " + thread_name)
     pr2 = PageRetrieval(thread_name, database_lock, stop_callback)
     pr2.run()
-    print("Finishing:" + thread_name)
+    print("Finishing: " + thread_name)
 
 
 def run_threads(N):
@@ -36,7 +36,7 @@ def run_threads(N):
         pass
     stop_callback.set()
     while threading.active_count() > 1:
-        print("Waiting for " + (threading.active_count() - 1) + " threads.")
+        print("Waiting for " + str(threading.active_count() - 1) + " threads.")
         time.sleep(5)
     return
 
