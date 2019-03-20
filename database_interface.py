@@ -160,11 +160,16 @@ class DatabaseInterface:
 
     def add_page(self, site_id, url, accessed_time, from_id):
         with self.database_lock:
-            sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time) 
-                        VALUES(%s, %s, %s, to_timestamp(%s)) RETURNING id;"""
-            id = self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time))
-            if id is None:
-                self.get
+            sql = """select id from crawldb.page WHERE url=%s;"""
+            id = self.execute_select_sql(sql, [url])
+
+            if len(id) == 0:
+                sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time) 
+                            VALUES(%s, %s, %s, to_timestamp(%s)) RETURNING id;"""
+                id = self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time))
+            else:
+                id = id[0][0]
+
             if from_id is None:
                 self.add_link(id, id, True)
             else:
