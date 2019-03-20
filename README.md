@@ -35,3 +35,7 @@ pip install bs4
 ```
 pip install psycopg2
 ```
+- lxml
+```
+pip install lxml
+```
