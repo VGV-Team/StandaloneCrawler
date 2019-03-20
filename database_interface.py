@@ -134,6 +134,11 @@ class DatabaseInterface:
             sql = """select id, site_id, url from crawldb.page;"""
             return self.execute_select_sql(sql, ())
 
+    def get_all_page_hashes(self):
+        with self.database_lock:
+            sql = """select id, site_id, hash from crawldb.page where hash not null;"""
+            return self.execute_select_sql(sql, ())
+
     def get_next_N_frontier(self, N):
         with self.database_lock:
             sql = """select id, site_id, url from crawldb.page WHERE page_type_code=%s AND processing is null ORDER BY accessed_time LIMIT %s;"""
