@@ -23,8 +23,8 @@ class PageRetrieval:
     name = None
     database_lock = None
 
-    len_of_shingle = 20
-    len_of_hash = 10
+    len_of_shingle = 5
+    len_of_hash = 110
     max_shingle_id = 2**32-1
     next_prime = 4294967311
 
@@ -60,18 +60,21 @@ class PageRetrieval:
                 hash = "placeholder"  # TODO: this
                 if website is None:
                     self.db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL,
-                                                http_status_code="408", hash=hash)
+                                                http_status_code="408", hash=null)
                     continue
                 current_url = self.canonicalize(current_url)
                 if status_code >= 400:
                     self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code,
-                                                hash=hash)
-                    #find_duplicate = self.find_duplicate_content(website)
+                                                hash=null)
+                    continue
+                minHash = self.minHash_content(website)
+                find_duplicate = self.find_duplicate_content(minHash)
+                if find_duplicate != 0:
+                    self.db.update_page_to_duplicate(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
                     continue
                 links = self.extract_links(website, current_url)
                 #print(self.name, links)
                 self.add_to_frontier(links, page_id)
-                minHash = self.minHash_content(website)
                 self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
 
                 # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
@@ -324,8 +327,18 @@ class PageRetrieval:
             return None
         return ids[0]
 
+    def find_duplicate_content(self, minHash1):
+        all_pages = self.db.get_all_page_hashes()
+        for p in range(len(all_pages)):
+            minHash2 = re.sub("[{}]", "", all_pages[p][2]).split(',')
+            jaccard = len(list(set(minHash1) & set(minHash2)))/len(list(set(minHash1) | set(minHash2)))
+            if jaccard >= 0.70:
+                return 1
+        return 0
+
     # List of k unique random values.
     def random_coeffitients(self):
+        random.seed(30)
         rand_list = [] 
         for i in range(self.len_of_hash, 0, -1):
             rand_index = random.randint(0, self.max_shingle_id)

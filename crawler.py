@@ -32,7 +32,7 @@ db_init = PageRetrieval("init", database_lock)
 db_init.initialize_database()
 
 if USE_MULTITHREADING:
-    run_threads(10)
+    run_threads(3)
 else:
     db_init.run()
 

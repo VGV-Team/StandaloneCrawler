@@ -136,7 +136,7 @@ class DatabaseInterface:
 
     def get_all_page_hashes(self):
         with self.database_lock:
-            sql = """select id, site_id, hash from crawldb.page where hash not null;"""
+            sql = """select id, site_id, hash from crawldb.page where hash is not null;"""
             return self.execute_select_sql(sql, ())
 
     def get_next_N_frontier(self, N):
