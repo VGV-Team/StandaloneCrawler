@@ -11,11 +11,19 @@ import re
 import binascii
 import random
 
+
 class PageRetrieval:
     FRONTIER = ["http://evem.gov.si",
                 "http://e-prostor.gov.si",
                 "http://e-uprava.gov.si",
                 "http://podatki.gov.si"]
+
+    FRONTIER_NEW = [
+        "http://www.gov.si/",
+        "http://www.stopbirokraciji.gov.si/",
+        "http://www.ukom.gov.si/",
+        "http://www.gu.gov.si/",
+        "http://www.fu.gov.si/"]
 
     driver = None
     db = None
@@ -42,6 +50,8 @@ class PageRetrieval:
         self.db.delete_all_data()
         self.FRONTIER = [self.canonicalize(f) for f in self.FRONTIER]
         for url in self.FRONTIER:
+            self.new_site(self.canonicalize(url), None)
+        for url in self.FRONTIER_NEW:
             self.new_site(self.canonicalize(url), None)
 
     def run(self):
