@@ -11,46 +11,46 @@ import re
 import binascii
 import random
 
+
 class PageRetrieval:
-    FRONTIER = ["http://evem.gov.si",
-                "http://e-prostor.gov.si",
-                "http://e-uprava.gov.si",
-                "http://podatki.gov.si"]
 
-    FRONTIER_NEW = [
-        "http://www.gov.si",
-        "http://www.stopbirokraciji.gov.si",
-        "http://www.ukom.gov.si",
-        "http://www.gu.gov.si",
-        "http://www.fu.gov.si"]
-
-    driver = None
-    db = None
-    name = None
-    database_lock = None
-    stop_callback = None
-
-
-    len_of_shingle = 5
-    len_of_hash = 110
-    max_shingle_id = 2**32-1
-    next_prime = 4294967311
-
-    coeff_a = None
-    coeff_b = None
-    
     def __init__(self, thread_name, database_lock, stop_callback):
         self.name = thread_name
         self.database_lock = database_lock
         self.stop_callback = stop_callback
         self.db = DatabaseInterface(database_lock)
 
+        self.FRONTIER = ["http://evem.gov.si",
+                         "http://e-prostor.gov.si",
+                         "http://e-uprava.gov.si",
+                         "http://podatki.gov.si"]
+
+        self.FRONTIER_NEW = [
+                        "http://www.gov.si",
+                        "http://www.stopbirokraciji.gov.si",
+                        "http://www.ukom.gov.si",
+                        "http://www.gu.gov.si",
+                        "http://www.fu.gov.si"]
+
+        self.canonicalize_frontier()
+        self.driver = None
+
+        self.len_of_shingle = 5
+        self.len_of_hash = 110
+        self.max_shingle_id = 2 ** 32 - 1
+        self.next_prime = 4294967311
+
+        self.coeff_a = None
+        self.coeff_b = None
+
+    def canonicalize_frontier(self):
+        self.FRONTIER = [self.canonicalize(f) for f in self.FRONTIER]
+        self.FRONTIER_NEW = [self.canonicalize(f) for f in self.FRONTIER_NEW]
+
     def initialize_database(self):
         self.db.delete_all_data()
-        self.FRONTIER = [self.canonicalize(f) for f in self.FRONTIER]
         for url in self.FRONTIER:
             self.new_site(self.canonicalize(url), None)
-        self.FRONTIER_NEW = [self.canonicalize(f) for f in self.FRONTIER_NEW]
         for url in self.FRONTIER_NEW:
             self.new_site(self.canonicalize(url), None)
 
@@ -87,8 +87,10 @@ class PageRetrieval:
                 self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
 
                 # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
-                if self.canonicalize("http://" + self.get_site(url)) in self.FRONTIER or self.canonicalize(
-                        "https://" + self.get_site(url)) in self.FRONTIER:
+                url_test = self.get_site(url)
+                url_test = url_test[4:] if url_test.startswith("www.") else url_test
+                if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
+                        "https://" + url_test) in self.FRONTIER:
                     images = self.extract_images(website, current_url)
                     for image in images:
                         image = self.canonicalize(image, ending_slash_check=False)
@@ -112,7 +114,6 @@ class PageRetrieval:
 
         if self.driver is not None:
             self.driver.close()
-
 
     def canonicalize(self, url, ending_slash_check=True):
         # remove default port number
@@ -205,6 +206,12 @@ class PageRetrieval:
             if result is not None:
                 print(self.name + " found onclick JS URL " + result.group(1))
                 links.append(result.group(1))
+                continue
+            result = re.search(".*document.location=[\s]*['\"](.*)['\"][\s]*[;].*", onclick)
+            if result is not None:
+                print(self.name + " found onclick JS URL " + result.group(1))
+                links.append(result.group(1))
+                continue
         return links
 
     def extract_images(self, website, current_url):
