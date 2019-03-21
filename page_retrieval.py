@@ -50,7 +50,7 @@ class PageRetrieval:
             self.new_site(self.canonicalize(url), None)
 
     def run(self):
-         while not self.stop_callback.is_set():
+        while not self.stop_callback.is_set():
             try:
                 #print(self.name, "Step", i)
                 page_id, site_id, url = self.get_next_url()
