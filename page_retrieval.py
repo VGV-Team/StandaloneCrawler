@@ -374,7 +374,7 @@ class PageRetrieval:
                 # See https://github.com/VGV-Team/StandaloneCrawler/issues/23
                 # Added some code to only parse relevant robots.txt segments where User-agent == *
                 our_user_agent = False
-                for line in resp.split("\n"):
+                for line in resp.splitlines():
                     if line.lower().find("user-agent") != -1:
                         ua = re.sub("[\n\t\s]", "", line).split(":")[1]
                         if ua == "*":
