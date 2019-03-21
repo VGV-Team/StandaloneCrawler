@@ -91,9 +91,14 @@ class PageRetrieval:
                 url_test = url_test[4:] if url_test.startswith("www.") else url_test
                 if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
                         "https://" + url_test) in self.FRONTIER:
+
+                    site_data = self.db.find_site(self.get_site(url))
+
                     images = self.extract_images(website, current_url)
                     for image in images:
                         image = self.canonicalize(image, ending_slash_check=False)
+                        if not self.is_page_allowed(image, site_data[0][2]):
+                            continue
                         print(self.name, image)
                         image_data, image_url, status_code = self.download_website(image)
                         if image_data is not None:
@@ -106,6 +111,8 @@ class PageRetrieval:
                     documents = self.extract_documents(website, current_url)
                     for document in documents:
                         document = self.canonicalize(document, ending_slash_check=False)
+                        if not self.is_page_allowed(document, site_data[0][2]):
+                            continue
                         document_data, document_url, status_code = self.download_website(document)
                         if document_data is not None:
                             document_type = self.get_document_type(document_url)

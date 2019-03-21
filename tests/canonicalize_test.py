@@ -30,7 +30,7 @@ def canonicalize(url, ending_slash_check=True):
     print(url)
     return url
 
-canonicalize("http://cs.indiana.edu:80/")
+canonicalize("http://www.e-prostor.gov.si/fileadmin/GJI/ceste/node_drzava_20160804.zip")
 canonicalize("http://cs.indiana.edu")
 canonicalize("http://cs.indiana.edu/People")
 canonicalize("http://cs.indiana.edu/faq.html#3")
