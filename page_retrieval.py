@@ -343,7 +343,7 @@ class PageRetrieval:
             jaccard = len(list(set(minHash1) & set(minHash2)))/len(list(set(minHash1) | set(minHash2)))
             if jaccard > 0.9:
                 return 1
-            return 0
+        return 0
 
     # List of k unique random values.
     def random_coeffitients(self):
