@@ -35,8 +35,8 @@ class PageRetrieval:
         self.canonicalize_frontier()
         self.driver = None
 
-        self.len_of_shingle = 5
-        self.len_of_hash = 110
+        self.len_of_shingle = 10
+        self.len_of_hash = 250
         self.max_shingle_id = 2 ** 32 - 1
         self.next_prime = 4294967311
 
@@ -73,14 +73,14 @@ class PageRetrieval:
                                                 http_status_code="408", hash=constants.DATABASE_NULL)
                     continue
                 current_url = self.canonicalize(current_url)
-                if status_code >= 400:
-                    self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code,
-                                                hash=constants.DATABASE_NULL)
-                    continue
                 minHash = self.minHash_content(website)
                 find_duplicate = self.find_duplicate_content(minHash)
                 if find_duplicate != 0:
                     self.db.update_page_to_duplicate(id=page_id, http_status_code=status_code, hash=minHash)
+                    continue
+                if status_code >= 400:
+                    self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code,
+                                                hash=constants.DATABASE_NULL)
                     continue
                 links = self.extract_links(website, current_url)
                 self.add_to_frontier(links, page_id)
@@ -339,11 +339,11 @@ class PageRetrieval:
     def find_duplicate_content(self, minHash1):
         all_pages = self.db.get_all_page_hashes()
         for p in range(len(all_pages)):
-            minHash2 = re.sub("[{}]", "", all_pages[p][2]).split(',')
+            minHash2 = all_pages[p][2]
             jaccard = len(list(set(minHash1) & set(minHash2)))/len(list(set(minHash1) | set(minHash2)))
-            if jaccard >= 0.70:
+            if jaccard > 0.9:
                 return 1
-        return 0
+            return 0
 
     # List of k unique random values.
     def random_coeffitients(self):
