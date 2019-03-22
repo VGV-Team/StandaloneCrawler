@@ -136,9 +136,10 @@ class DatabaseInterface:
 
     def get_next_N_frontier(self, N):
         with self.database_lock:
-            sql = """select id, site_id, url, depth from crawldb.page 
-            WHERE page_type_code=%s AND processing is null ORDER BY accessed_time LIMIT %s;"""
-            results = self.execute_select_sql(sql, (constants.PAGE_TYPE_CODE_FRONTIER, N))
+            sql = """select id, site_id, url, depth from crawldb.page WHERE page_type_code=%s AND 
+                        processing is null AND depth>=%s AND depth<=%s ORDER BY accessed_time LIMIT %s;"""
+            results = self.execute_select_sql(sql, (constants.PAGE_TYPE_CODE_FRONTIER,
+                                                    constants.MIN_DEPTH, constants.MAX_DEPTH, N))
             for res in results:
                 sql = """UPDATE crawldb.page SET processing = TRUE WHERE id = %s;"""
                 self.execute_update_sql(sql, [res[0]])
