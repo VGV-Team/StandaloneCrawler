@@ -136,7 +136,8 @@ class DatabaseInterface:
 
     def get_next_N_frontier(self, N):
         with self.database_lock:
-            sql = """select id, site_id, url from crawldb.page WHERE page_type_code=%s AND processing is null ORDER BY accessed_time LIMIT %s;"""
+            sql = """select id, site_id, url, depth from crawldb.page 
+            WHERE page_type_code=%s AND processing is null ORDER BY accessed_time LIMIT %s;"""
             results = self.execute_select_sql(sql, (constants.PAGE_TYPE_CODE_FRONTIER, N))
             for res in results:
                 sql = """UPDATE crawldb.page SET processing = TRUE WHERE id = %s;"""
@@ -150,18 +151,20 @@ class DatabaseInterface:
     
     def add_site(self, domain, robots_content, sitemap_content):
         with self.database_lock:
-            sql = """INSERT INTO crawldb.site(domain, robots_content, sitemap_content) VALUES(%s, %s, %s) RETURNING id;"""
+            sql = """INSERT INTO crawldb.site(domain, robots_content, sitemap_content) 
+            VALUES(%s, %s, %s) RETURNING id;"""
             return self.execute_insert_sql(sql, (domain, robots_content, sitemap_content))
 
-    def add_page(self, site_id, url, accessed_time, from_id):
+    def add_page(self, site_id, url, accessed_time, from_id, depth):
         with self.database_lock:
             sql = """select id from crawldb.page WHERE url=%s;"""
             id = self.execute_select_sql(sql, [url])
 
             if len(id) == 0:
-                sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time) 
-                            VALUES(%s, %s, %s, to_timestamp(%s)) RETURNING id;"""
-                id = self.execute_insert_sql(sql, (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time))
+                sql = """INSERT INTO crawldb.page(site_id, page_type_code, url, accessed_time, depth) 
+                            VALUES(%s, %s, %s, to_timestamp(%s), %s) RETURNING id;"""
+                id = self.execute_insert_sql(sql,
+                                             (site_id, constants.PAGE_TYPE_CODE_FRONTIER, url, accessed_time, depth))
             else:
                 id = id[0][0]
 

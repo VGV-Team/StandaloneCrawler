@@ -25,6 +25,7 @@ CREATE TABLE crawldb.page (
 	url                  varchar(3000)  ,
 	html_content         text  ,
 	http_status_code     integer  ,
+	depth                integer  ,
 	accessed_time        timestamp  ,
 	hash                 integer ARRAY   ,
 	processing           boolean  ,

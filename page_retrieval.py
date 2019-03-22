@@ -49,14 +49,14 @@ class PageRetrieval:
     def initialize_database(self):
         self.db.delete_all_data()
         for url in self.FRONTIER:
-            self.new_site(self.canonicalize(url), None)
-        for url in self.FRONTIER_NEW:
-            self.new_site(self.canonicalize(url), None)
+            self.new_site(self.canonicalize(url), None, 0)
+        #for url in self.FRONTIER_NEW:
+        #    self.new_site(self.canonicalize(url), None)
 
     def run(self):
         while not self.stop_callback.is_set():
             try:
-                page_id, site_id, url = self.get_next_url()
+                page_id, site_id, url, depth = self.get_next_url()
                 if page_id is None or site_id is None or url is None:
                     # if frontier is empty, wait a few seconds
                     time.sleep(constants.CRAWLER_EMPTY_FRONTIER_SLEEP)
@@ -65,62 +65,66 @@ class PageRetrieval:
                 url = self.canonicalize(url)
                 if page_id is None:
                     break
-                print(self.name + " is processing URL " + url)
-                website, current_url, status_code = self.download_website(url)
-                if website is None:
-                    self.db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL,
-                                                http_status_code="408", hash=constants.DATABASE_NULL)
-                    continue
-                current_url = self.canonicalize(current_url)
-                minHash = self.minHash_content(website)
-                find_duplicate = self.find_duplicate_content(minHash)
-                if find_duplicate != 0:
-                    self.db.update_page_to_duplicate(id=page_id, http_status_code=status_code, hash=minHash)
-                    continue
-                if status_code >= 400:
-                    self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code,
-                                                hash=constants.DATABASE_NULL)
-                    continue
-                links = self.extract_links(website, current_url)
-                self.add_to_frontier(links, page_id)
-                self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
-
-                # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
                 url_test = self.get_site(url)
                 url_test = url_test[4:] if url_test.startswith("www.") else url_test
                 if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
                         "https://" + url_test) in self.FRONTIER:
+                    print(self.name + " is processing URL " + url)
+                    website, current_url, status_code = self.download_website(url)
+                    if website is None:
+                        self.db.update_page_to_html(id=page_id, html_content=constants.DATABASE_NULL,
+                                                    http_status_code="408", hash=constants.DATABASE_NULL)
+                        continue
+                    current_url = self.canonicalize(current_url)
+                    minHash = self.minHash_content(website)
+                    find_duplicate = self.find_duplicate_content(minHash)
+                    if find_duplicate != 0:
+                        self.db.update_page_to_duplicate(id=page_id, http_status_code=status_code, hash=minHash)
+                        continue
+                    if status_code >= 400:
+                        self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code,
+                                                    hash=constants.DATABASE_NULL)
+                        continue
+                    links = self.extract_links(website, current_url)
+                    self.add_to_frontier(links, page_id, depth+1)
+                    self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
 
-                    site_data = self.db.find_site(self.get_site(url))
+                    # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
+                    url_test = self.get_site(url)
+                    url_test = url_test[4:] if url_test.startswith("www.") else url_test
+                    if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
+                            "https://" + url_test) in self.FRONTIER:
 
-                    images = self.extract_images(website, current_url)
-                    for image in images:
-                        image = self.canonicalize(image, ending_slash_check=False)
+                        site_data = self.db.find_site(self.get_site(url))
 
-                        if not self.is_page_allowed(image, site_data[0][2]):
-                            continue
-                        print(self.name + " is parsing image " + image)
-                        image_data, image_url, status_code = self.download_website(image)
-                        if image_data is not None:
-                            image_type = self.get_image_type(image_url)
-                            if image_type is not None:
-                                self.db.add_image(page_id, image, image_type, image_data, time.time())
-                                #self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
-                                #                     status_code=status_code)
+                        images = self.extract_images(website, current_url)
+                        for image in images:
+                            image = self.canonicalize(image, ending_slash_check=False)
 
-                    documents = self.extract_documents(website, current_url)
-                    for document in documents:
-                        document = self.canonicalize(document, ending_slash_check=False)
-                        if not self.is_page_allowed(document, site_data[0][2]):
-                            continue
-                        print(self.name + " is parsing document " + document)
-                        document_data, document_url, status_code = self.download_website(document)
-                        if document_data is not None:
-                            document_type = self.get_document_type(document_url)
-                            if document_type is not None:
-                                self.db.add_page_data(page_id, document_type, document_data)
-                                #self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
-                                #                     status_code=status_code)
+                            if not self.is_page_allowed(image, site_data[0][2]):
+                                continue
+                            print(self.name + " is parsing image " + image)
+                            image_data, image_url, status_code = self.download_website(image)
+                            if image_data is not None:
+                                image_type = self.get_image_type(image_url)
+                                if image_type is not None:
+                                    self.db.add_image(page_id, image, image_type, image_data, time.time())
+                                    #self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
+                                    #                     status_code=status_code, depth=depth)
+
+                        documents = self.extract_documents(website, current_url)
+                        for document in documents:
+                            document = self.canonicalize(document, ending_slash_check=False)
+                            if not self.is_page_allowed(document, site_data[0][2]):
+                                continue
+                            print(self.name + " is parsing document " + document)
+                            document_data, document_url, status_code = self.download_website(document)
+                            if document_data is not None:
+                                document_type = self.get_document_type(document_url)
+                                if document_type is not None:
+                                    self.db.add_page_data(page_id, document_type, document_data)
+                                    #self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
+                                    #                     status_code=status_code, depth=depth)
 
             except:
                 print(self.name + " encountered a FATAL ERROR at URL " + url)
@@ -129,8 +133,9 @@ class PageRetrieval:
         if self.driver is not None:
             self.driver.close()
 
-    def add_binary_page(self, url, site_id, from_id, status_code):
-        binary_page_id = self.db.add_page(site_id=site_id, url=url, accessed_time=time.time(), from_id=from_id)
+    def add_binary_page(self, url, site_id, from_id, status_code, depth):
+        binary_page_id = self.db.add_page(site_id=site_id, url=url, accessed_time=time.time(), from_id=from_id,
+                                          depth=depth)
         self.db.update_page_to_binary(id=binary_page_id, http_status_code=status_code)
 
     def canonicalize(self, url, ending_slash_check=True):
@@ -183,9 +188,9 @@ class PageRetrieval:
         # 0: id (page_id), 1: site_id (FK), 2: url
         if len(data) > 0:
             data = data[0]
-            return data[0], data[1], data[2]
+            return data[0], data[1], data[2], data[3]
         else:
-            return None, None, None
+            return None, None, None, None
 
     def download_website(self, url):
 
@@ -330,19 +335,27 @@ class PageRetrieval:
         return allow
     
     # we need url to resolve relative links
-    def add_to_frontier(self, links, current_page_id):
+    def add_to_frontier(self, links, current_page_id, depth):
         for link in links:
-            site_data = self.db.find_site(self.get_site(link))
-            if len(site_data) == 0:
-                # new site/domain; add site to db and page to frontier
-                self.new_site(link, current_page_id)
-            else:
-                # site exists in db, check for duplicate links and add page to frontier
-                site_id = site_data[0][0]
-                duplicate = self.find_website_duplicate(link)
-                allowed = self.is_page_allowed(link, site_data[0][2])
-                if duplicate is None and allowed:
-                    self.db.add_page(site_id=site_id, url=link, accessed_time=time.time(), from_id=current_page_id)
+
+            url_test = self.get_site(link)
+            if url_test is not None:
+                url_test = url_test[4:] if url_test.startswith("www.") else url_test
+                if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
+                        "https://" + url_test) in self.FRONTIER:
+
+                    site_data = self.db.find_site(self.get_site(link))
+                    if len(site_data) == 0:
+                        # new site/domain; add site to db and page to frontier
+                        self.new_site(link, current_page_id, depth)
+                    else:
+                        # site exists in db, check for duplicate links and add page to frontier
+                        site_id = site_data[0][0]
+                        duplicate = self.find_website_duplicate(link)
+                        allowed = self.is_page_allowed(link, site_data[0][2])
+                        if duplicate is None and allowed:
+                            self.db.add_page(site_id=site_id, url=link, accessed_time=time.time(),
+                                             from_id=current_page_id, depth=depth)
 
     # check if URL is already in a frontier
     def find_website_duplicate(self, url):
@@ -363,7 +376,7 @@ class PageRetrieval:
         for p in range(len(all_pages)):
             minHash2 = all_pages[p][2]
             jaccard = len(list(set(minHash1) & set(minHash2)))/len(list(set(minHash1) | set(minHash2)))
-            if jaccard > 0.9:
+            if jaccard > 0.95:
                 return 1
         return 0
 
@@ -399,8 +412,6 @@ class PageRetrieval:
             if r.status_code < 400:
                 data = {"User-agent": [], "Disallow": [], "Allow": [], "Crawl-delay": []}
                 sitemap = []
-                # TODO: some robots.txt files don't parse correctly.
-                # See https://github.com/VGV-Team/StandaloneCrawler/issues/23
                 # Added some code to only parse relevant robots.txt segments where User-agent == *
                 our_user_agent = False
                 for line in resp.splitlines():
@@ -452,7 +463,7 @@ class PageRetrieval:
                 print("Can not fetch sitemap.")
 
     # creates new site(domain) and adds the page to frontier
-    def new_site(self, url, current_page_id):
+    def new_site(self, url, current_page_id, depth):
         site = self.get_site(url)
         if site is None:
             print(self.name + " could not parse site (domain) from " + url)
@@ -461,11 +472,11 @@ class PageRetrieval:
             robots, sitemap = self.get_robots_txt(url)  # robots spremenimo nazaj v dict z eval()
             site_id = self.db.add_site(site, robots, sitemap)
             if self.is_page_allowed(url, robots):
-                page_id = self.db.add_page(site_id, url, time.time(), current_page_id)
+                page_id = self.db.add_page(site_id, url, time.time(), current_page_id, depth)
             # add sitemap in frontier
             if sitemap != constants.DATABASE_NULL:
                 l = self.read_sitemap(sitemap, url)
-                self.add_to_frontier(l, page_id)
+                self.add_to_frontier(l, page_id, depth+1)
 
     def get_image_type(self, url):
         res = list(filter(url.upper().endswith, ("." + constants.IMAGE_CONTENT_TYPE_JPG,
