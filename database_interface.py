@@ -1,14 +1,10 @@
 from configparser import ConfigParser
 import psycopg2
-from multiprocessing import Lock
 
 import constants
 
 
 class DatabaseInterface:
-
-
-
     def __init__(self, database_lock, config_path='database/database.ini'):
         self.config = self.read_config(filename=config_path)
         self.database_lock = database_lock

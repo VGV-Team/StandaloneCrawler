@@ -90,30 +90,48 @@ class PageRetrieval:
                 url_test = url_test[4:] if url_test.startswith("www.") else url_test
                 if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
                         "https://" + url_test) in self.FRONTIER:
+
+                    site_data = self.db.find_site(self.get_site(url))
+
                     images = self.extract_images(website, current_url)
                     for image in images:
                         image = self.canonicalize(image, ending_slash_check=False)
+
+                        if not self.is_page_allowed(image, site_data[0][2]):
+                            continue
                         print(self.name + " is parsing image " + image)
                         image_data, image_url, status_code = self.download_website(image)
                         if image_data is not None:
                             image_type = self.get_image_type(image_url)
-                            self.db.add_image(page_id, image, image_type, image_data, time.time())
+                            if image_type is not None:
+                                self.db.add_image(page_id, image, image_type, image_data, time.time())
+                                self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
+                                                     status_code=status_code)
 
                     documents = self.extract_documents(website, current_url)
                     for document in documents:
                         document = self.canonicalize(document, ending_slash_check=False)
+                        if not self.is_page_allowed(document, site_data[0][2]):
+                            continue
                         print(self.name + " is parsing document " + document)
                         document_data, document_url, status_code = self.download_website(document)
                         if document_data is not None:
                             document_type = self.get_document_type(document_url)
                             if document_type is not None:
                                 self.db.add_page_data(page_id, document_type, document_data)
+                                self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
+                                                     status_code=status_code)
+
             except:
                 print(self.name + " encountered a FATAL ERROR at URL " + url)
                 traceback.print_exc()
 
         if self.driver is not None:
             self.driver.close()
+
+    def add_binary_page(self, url, site_id, from_id, status_code):
+        binary_page_id = self.db.add_page(site_id=site_id, url=url, accessed_time=time.time(), from_id=from_id)
+        self.db.update_page_to_binary(id=binary_page_id, http_status_code=status_code)
 
     def canonicalize(self, url, ending_slash_check=True):
         # remove default port number
