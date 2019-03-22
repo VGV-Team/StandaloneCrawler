@@ -105,8 +105,8 @@ class PageRetrieval:
                             image_type = self.get_image_type(image_url)
                             if image_type is not None:
                                 self.db.add_image(page_id, image, image_type, image_data, time.time())
-                                self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
-                                                     status_code=status_code)
+                                #self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
+                                #                     status_code=status_code)
 
                     documents = self.extract_documents(website, current_url)
                     for document in documents:
@@ -119,8 +119,8 @@ class PageRetrieval:
                             document_type = self.get_document_type(document_url)
                             if document_type is not None:
                                 self.db.add_page_data(page_id, document_type, document_data)
-                                self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
-                                                     status_code=status_code)
+                                #self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
+                                #                     status_code=status_code)
 
             except:
                 print(self.name + " encountered a FATAL ERROR at URL " + url)
@@ -268,15 +268,19 @@ class PageRetrieval:
     def change_link_to_absolute(self, link, current_url):
         if not link.startswith("http://") and not link.startswith("https://"):
             # link is relative link
-            # if have to remove a '/' else if don't have to add '/' else have to add '/'
-            if current_url[-1] == "/" and link[0] == "/":
-                link = link[1:]
-                slash = ""
-            elif current_url[-1] == "/" or link[0] == "/":
-                slash = ""
-            else:
+            # if starts with '/', append link to root (site)
+            if link[0] == "/":
+                site = self.get_site(current_url)
+                protocol = "https://" if current_url.startswith("https://") else "http://"
+                return protocol + site + link
+            # else if current doesn't end with '/' add it
+            slash = ""
+            if current_url[-1] != "/":
                 slash = "/"
-            return current_url + slash + link
+                cur_url = "/".join(current_url.split("/")[0:-1])
+            else:
+                cur_url = current_url
+            return cur_url + slash + link
         else:
             # link is absolute link
             return link
@@ -450,7 +454,9 @@ class PageRetrieval:
     # creates new site(domain) and adds the page to frontier
     def new_site(self, url, current_page_id):
         site = self.get_site(url)
-        if site.endswith(".gov.si") or site.endswith(".gov.si/"):
+        if site is None:
+            print(self.name + " could not parse site (domain) from " + url)
+        elif site.endswith(".gov.si") or site.endswith(".gov.si/"):
             # get robots.txt and parse it
             robots, sitemap = self.get_robots_txt(url)  # robots spremenimo nazaj v dict z eval()
             site_id = self.db.add_site(site, robots, sitemap)
@@ -484,3 +490,4 @@ class PageRetrieval:
             return None
         else:
             return res[0].strip(".")
+

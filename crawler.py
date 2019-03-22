@@ -3,7 +3,7 @@ from page_retrieval import PageRetrieval
 import time
 
 USE_MULTITHREADING = True
-NUMBER_OF_THREADS = 10
+NUMBER_OF_THREADS = 50
 
 
 
