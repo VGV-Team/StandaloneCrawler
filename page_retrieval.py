@@ -25,12 +25,11 @@ class PageRetrieval:
                          "http://e-uprava.gov.si",
                          "http://podatki.gov.si"]
 
-        self.FRONTIER_NEW = [
-                        "http://www.gov.si",
-                        "http://www.stopbirokraciji.gov.si",
-                        "http://www.ukom.gov.si",
-                        "http://www.gu.gov.si",
-                        "http://www.fu.gov.si"]
+        self.FRONTIER_NEW = ["http://www.gov.si",
+                             "http://www.stopbirokraciji.gov.si",
+                             "http://www.ukom.gov.si",
+                             "http://www.gu.gov.si",
+                             "http://www.fu.gov.si"]
 
         self.canonicalize_frontier()
         self.driver = None
@@ -94,7 +93,7 @@ class PageRetrieval:
                     images = self.extract_images(website, current_url)
                     for image in images:
                         image = self.canonicalize(image, ending_slash_check=False)
-                        print(self.name, image)
+                        print(self.name + " is parsing image " + image)
                         image_data, image_url, status_code = self.download_website(image)
                         if image_data is not None:
                             image_type = self.get_image_type(image_url)
@@ -103,6 +102,7 @@ class PageRetrieval:
                     documents = self.extract_documents(website, current_url)
                     for document in documents:
                         document = self.canonicalize(document, ending_slash_check=False)
+                        print(self.name + " is parsing document " + document)
                         document_data, document_url, status_code = self.download_website(document)
                         if document_data is not None:
                             document_type = self.get_document_type(document_url)

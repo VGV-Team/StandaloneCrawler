@@ -1,52 +1,57 @@
-import threading
+from multiprocessing import Process, Lock, Event, active_children
 from page_retrieval import PageRetrieval
 import time
 
 USE_MULTITHREADING = True
+NUMBER_OF_THREADS = 10
 
-database_lock = threading.Lock()
-stop_callback = threading.Event()
 
 
 def should_process_run():
     text = input()
-    if text == "quit":
+    if text == "q":
         return False
     else:
         return True
 
-def crawler_thread(thread_name):
+def crawler_thread(thread_name, database_lock, stop_callback):
     print("Starting: " + thread_name)
-    pr2 = PageRetrieval(thread_name, database_lock, stop_callback)
-    pr2.run()
+    pr = PageRetrieval(thread_name, database_lock, stop_callback)
+    pr.run()
     print("Finishing: " + thread_name)
 
 
-def run_threads(N):
+def run_threads(N, database_lock, stop_callback):
+    print(N)
     for i in range(N):
         try:
-            t = threading.Thread(target=crawler_thread, args=[("Thread-" + str(i))])
+            t = Process(target=crawler_thread, args=[("Thread-" + str(i)), database_lock, stop_callback])
             t.daemon = True
             t.start()
         except:
             print("Error: unable to start thread")
 
-    print("All threads started, type 'quit' to finish.")
+
+    time.sleep(NUMBER_OF_THREADS*2)
+    print("All threads started, type 'q' to finish. If all threads did not start then enter some random non 'q' "
+          "character first and hit enter.")
     while should_process_run():
         pass
     stop_callback.set()
-    while threading.active_count() > 1:
-        print("Waiting for " + str(threading.active_count() - 1) + " threads.")
+    while len(active_children()) > 1:
+        print("Waiting for " + str(len(active_children()) - 1) + " threads.")
         time.sleep(5)
     return
 
 
-db_init = PageRetrieval("init", database_lock, stop_callback)
-db_init.initialize_database()
+if __name__ == '__main__':
+    database_lock = Lock()
+    stop_callback = Event()
+    db_init = PageRetrieval("init", database_lock, stop_callback)
+    db_init.initialize_database()
+    if USE_MULTITHREADING:
+        run_threads(NUMBER_OF_THREADS, database_lock, stop_callback)
+    else:
+        db_init.run()
 
-if USE_MULTITHREADING:
-    run_threads(10)
-else:
-    db_init.run()
-
-print("All threads finished.")
+    print("All threads finished.")
