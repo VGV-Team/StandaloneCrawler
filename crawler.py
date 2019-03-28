@@ -2,9 +2,10 @@ from multiprocessing import Process, Lock, Event, active_children
 from page_retrieval import PageRetrieval
 import time
 import datetime
+from database_interface import DatabaseInterface
 
 USE_MULTITHREADING = True
-NUMBER_OF_THREADS = 2
+NUMBER_OF_THREADS = 4
 FRESH_START = True
 
 
@@ -16,20 +17,20 @@ def should_process_run():
     else:
         return True
 
-def crawler_thread(thread_name, database_lock, stop_callback):
+def crawler_thread(thread_name, database_lock, stop_callback, db):
     print("Starting: " + thread_name)
-    pr = PageRetrieval(thread_name, database_lock, stop_callback)
+    pr = PageRetrieval(thread_name, database_lock, stop_callback, db)
     pr.run()
     print("Finishing: " + thread_name)
 
 
-def run_threads(N, database_lock, stop_callback):
+def run_threads(N, database_lock, stop_callback, db):
     print(N)
     start_time = time.time()
     print("Start time:", datetime.datetime.fromtimestamp(start_time))
     for i in range(N):
         try:
-            t = Process(target=crawler_thread, args=[("Thread-" + str(i)), database_lock, stop_callback])
+            t = Process(target=crawler_thread, args=[("Thread-" + str(i)), database_lock, stop_callback, db])
             t.daemon = True
             t.start()
         except:
@@ -60,11 +61,12 @@ def run_threads(N, database_lock, stop_callback):
 if __name__ == '__main__':
     database_lock = Lock()
     stop_callback = Event()
-    db_init = PageRetrieval("init", database_lock, stop_callback)
+    db = DatabaseInterface(database_lock)
+    db_init = PageRetrieval("init", database_lock, stop_callback, db)
     if FRESH_START:
         db_init.initialize_database()
     if USE_MULTITHREADING:
-        run_threads(NUMBER_OF_THREADS, database_lock, stop_callback)
+        run_threads(NUMBER_OF_THREADS, database_lock, stop_callback, db)
     else:
         db_init.run()
 

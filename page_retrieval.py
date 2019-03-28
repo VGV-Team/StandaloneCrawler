@@ -2,7 +2,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from database_interface import DatabaseInterface
 import constants
 import time
 import traceback
@@ -14,11 +13,12 @@ import random
 
 class PageRetrieval:
 
-    def __init__(self, thread_name, database_lock, stop_callback):
+    def __init__(self, thread_name, database_lock, stop_callback, db):
         self.name = thread_name
         self.database_lock = database_lock
         self.stop_callback = stop_callback
-        self.db = DatabaseInterface(database_lock)
+        #self.db = DatabaseInterface(database_lock)
+        self.db = db
 
         self.FRONTIER = ["http://evem.gov.si",
                          "http://e-prostor.gov.si",
@@ -54,6 +54,7 @@ class PageRetrieval:
         #    self.new_site(self.canonicalize(url), None)
 
     def run(self):
+
         while not self.stop_callback.is_set():
             try:
                 page_id, site_id, url, depth = self.get_next_url()
@@ -63,8 +64,6 @@ class PageRetrieval:
                     print(self.name + " found empty frontier, waiting...")
                     continue
                 url = self.canonicalize(url)
-                if page_id is None:
-                    break
                 url_test = self.get_site(url)
                 url_test = url_test[4:] if url_test.startswith("www.") else url_test
                 if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
@@ -109,8 +108,8 @@ class PageRetrieval:
                                 image_type = self.get_image_type(image_url)
                                 if image_type is not None:
                                     self.db.add_image(page_id, image, image_type, image_data, time.time())
-                                    #self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
-                                    #                     status_code=status_code, depth=depth)
+                                    self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
+                                                         status_code=status_code, depth=depth)
 
                         documents = self.extract_documents(website, current_url)
                         for document in documents:
@@ -123,8 +122,8 @@ class PageRetrieval:
                                 document_type = self.get_document_type(document_url)
                                 if document_type is not None:
                                     self.db.add_page_data(page_id, document_type, document_data)
-                                    #self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
-                                    #                     status_code=status_code, depth=depth)
+                                    self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
+                                                         status_code=status_code, depth=depth)
 
             except:
                 print(self.name + " encountered a FATAL ERROR at URL " + url)
@@ -165,6 +164,8 @@ class PageRetrieval:
         # domain to lower case
         url_split = url.split("/")
         url = "/".join(url_split[0:2]) + "/" + url_split[2].lower() + "/" + "/".join(url_split[3:])
+        # replace ' ' with %20
+        url = url.replace(" ", "%20")
         return url
 
     def filter_javascript_link(self, link):
@@ -222,7 +223,7 @@ class PageRetrieval:
                     self.get_document_type(href) is None:
                 links.append(self.change_link_to_absolute(href, current_url))
         # check a tags with onclick events
-        a = html.find_all("a", onclick=True)
+        a = html.find_all(onclick=True)
         for link in a:
             onclick = link["onclick"]
             result = re.search(".*location.href=[\s]*['\"](.*)['\"][\s]*[;].*", onclick)
@@ -376,7 +377,7 @@ class PageRetrieval:
         for p in range(len(all_pages)):
             minHash2 = all_pages[p][2]
             jaccard = len(list(set(minHash1) & set(minHash2)))/len(list(set(minHash1) | set(minHash2)))
-            if jaccard > 0.95:
+            if jaccard > 0.96:
                 return 1
         return 0
 
@@ -410,7 +411,7 @@ class PageRetrieval:
             r = requests.get(url + "robots.txt")
             resp = r.text
             if r.status_code < 400:
-                data = {"User-agent": [], "Disallow": [], "Allow": [], "Crawl-delay": []}
+                data = {"User-agent": [], "Disallow": [], "Allow": []}
                 sitemap = []
                 # Added some code to only parse relevant robots.txt segments where User-agent == *
                 our_user_agent = False
@@ -428,15 +429,15 @@ class PageRetrieval:
                         elif line.lower().find("allow") != -1:
                             data["Allow"].append(re.sub("[\n\t\s]", "", line).split(":")[1])
                         elif line.lower().find("crawl-delay") != -1:
-                            data["Crawl-delay"].append(re.sub("[\n\t\s]", "", line).split(":")[1])
+                            data["Crawl-delay"] = re.sub("[\n\t\s]", "", line).split(":")[1]
                         elif line.lower().find("sitemap") != -1:
                             sitemap.append(re.sub("[\n\t\s]", "", line).split(":", 1)[1])
                 if len(sitemap) == 0:
-                    return str(data), constants.DATABASE_NULL
-                return str(data), sitemap
+                    return str(data), constants.DATABASE_NULL, data.get("Crawl-delay", constants.DEFAULT_CRAWL_DELAY)
+                return str(data), sitemap, data.get("Crawl-delay", constants.DEFAULT_CRAWL_DELAY)
         except requests.exceptions.RequestException as e:
-            return constants.DATABASE_NULL, constants.DATABASE_NULL
-        return constants.DATABASE_NULL, constants.DATABASE_NULL
+            return constants.DATABASE_NULL, constants.DATABASE_NULL, constants.DATABASE_NULL
+        return constants.DATABASE_NULL, constants.DATABASE_NULL, constants.DATABASE_NULL
 
     def read_sitemap(self, sitemap, url):
         l = []
@@ -469,8 +470,8 @@ class PageRetrieval:
             print(self.name + " could not parse site (domain) from " + url)
         elif site.endswith(".gov.si") or site.endswith(".gov.si/"):
             # get robots.txt and parse it
-            robots, sitemap = self.get_robots_txt(url)  # robots spremenimo nazaj v dict z eval()
-            site_id = self.db.add_site(site, robots, sitemap)
+            robots, sitemap, crawl_delay = self.get_robots_txt(url)  # robots spremenimo nazaj v dict z eval()
+            site_id = self.db.add_site(site, robots, sitemap, crawl_delay)
             if self.is_page_allowed(url, robots):
                 page_id = self.db.add_page(site_id, url, time.time(), current_page_id, depth)
             # add sitemap in frontier
