@@ -9,7 +9,7 @@ import requests
 import re
 import binascii
 import random
-
+from bs4 import BeautifulSoup
 
 class PageRetrieval:
 
@@ -34,8 +34,8 @@ class PageRetrieval:
         self.canonicalize_frontier()
         self.driver = None
 
-        self.len_of_shingle = 10
-        self.len_of_hash = 250
+        self.len_of_shingle = 8
+        self.len_of_hash = 200
         self.max_shingle_id = 2 ** 32 - 1
         self.next_prime = 4294967311
 
@@ -394,8 +394,10 @@ class PageRetrieval:
     
     def minHash_content(self, website):
         #converting content of website to a set of shingles and hash each single
-        shingles = [binascii.crc32(website[i:i+self.len_of_shingle].encode('utf-8')) & 0xffffffff
-                    for i in range(len(website)-self.len_of_shingle+1)]
+        soup = BeautifulSoup(website, 'html.parser')
+        text = re.sub(r"[\n\t\s]*", "", soup.get_text())
+        shingles = [binascii.crc32(text[i:i+self.len_of_shingle].encode('utf-8')) & 0xffffffff
+                    for i in range(len(text)-self.len_of_shingle+1)]
         if self.coeff_a == None:
             self.coeff_a = self.random_coeffitients()
             self.coeff_b = self.random_coeffitients()
