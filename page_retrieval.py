@@ -108,8 +108,8 @@ class PageRetrieval:
                                 image_type = self.get_image_type(image_url)
                                 if image_type is not None:
                                     self.db.add_image(page_id, image, image_type, image_data, time.time())
-                                    self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
-                                                         status_code=status_code, depth=depth)
+                                    # self.add_binary_page(url=image, site_id=site_id, from_id=page_id,
+                                    #                     status_code=status_code, depth=depth)
 
                         documents = self.extract_documents(website, current_url)
                         for document in documents:
@@ -122,8 +122,8 @@ class PageRetrieval:
                                 document_type = self.get_document_type(document_url)
                                 if document_type is not None:
                                     self.db.add_page_data(page_id, document_type, document_data)
-                                    self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
-                                                         status_code=status_code, depth=depth)
+                                    # self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
+                                    #                     status_code=status_code, depth=depth)
 
             except:
                 print(self.name + " encountered a FATAL ERROR at URL " + url)
