@@ -401,7 +401,7 @@ class PageRetrieval:
         #converting content of website to a set of shingles and hash each single
         soup = BeautifulSoup(website, 'html.parser')
         text = re.sub(r"[\n\t\s]*", "", soup.get_text())
-        if len(text) == 0 :
+        if len(text) != 0 :
             shingles = [binascii.crc32(text[i:i+self.len_of_shingle].encode('utf-8')) & 0xffffffff
                     for i in range(len(text)-self.len_of_shingle+1)]
             if self.coeff_a == None:
