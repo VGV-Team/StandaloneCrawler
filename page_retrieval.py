@@ -35,7 +35,7 @@ class PageRetrieval:
         self.driver = None
 
         self.len_of_shingle = 8
-        self.len_of_hash = 200
+        self.len_of_hash = 250
         self.max_shingle_id = 2 ** 32 - 1
         self.next_prime = 4294967311
 
@@ -86,7 +86,10 @@ class PageRetrieval:
                         continue
                     links = self.extract_links(website, current_url)
                     self.add_to_frontier(links, page_id, depth+1)
-                    self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
+                    if len(minHash) == 0:
+                        self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=constants.DATABASE_NULL)
+                    else:
+                        self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
 
                     # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
                     url_test = self.get_site(url)
@@ -376,8 +379,10 @@ class PageRetrieval:
         all_pages = self.db.get_all_page_hashes()
         for p in range(len(all_pages)):
             minHash2 = all_pages[p][2]
-            jaccard = len(list(set(minHash1) & set(minHash2)))/len(list(set(minHash1) | set(minHash2)))
-            if jaccard > 0.96:
+            s1 = set(minHash1)
+            s2 = set(minHash2)
+            jaccard = len(s1.intersection(s2)) / len(s1.union(s2))
+            if jaccard > 0.99:
                 return 1
         return 0
 
@@ -396,15 +401,17 @@ class PageRetrieval:
         #converting content of website to a set of shingles and hash each single
         soup = BeautifulSoup(website, 'html.parser')
         text = re.sub(r"[\n\t\s]*", "", soup.get_text())
-        shingles = [binascii.crc32(text[i:i+self.len_of_shingle].encode('utf-8')) & 0xffffffff
+        if len(text) == 0 :
+            shingles = [binascii.crc32(text[i:i+self.len_of_shingle].encode('utf-8')) & 0xffffffff
                     for i in range(len(text)-self.len_of_shingle+1)]
-        if self.coeff_a == None:
-            self.coeff_a = self.random_coeffitients()
-            self.coeff_b = self.random_coeffitients()
-        #generating minHash signature
-        signature = [min([((self.coeff_a[i] * j + self.coeff_b[i]) % self.next_prime)
+            if self.coeff_a == None:
+                self.coeff_a = self.random_coeffitients()
+                self.coeff_b = self.random_coeffitients()
+            #generating minHash signature
+            signature = [min([((self.coeff_a[i] * j + self.coeff_b[i]) % self.next_prime)
                           for j in shingles]) for i in range(self.len_of_hash)]
-        return signature
+            return signature
+        return []
 
     def get_robots_txt(self, url):
         if url.endswith("/") == False:
