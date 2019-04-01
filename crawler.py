@@ -5,7 +5,7 @@ import datetime
 from database_interface import DatabaseInterface
 
 USE_MULTITHREADING = True
-NUMBER_OF_THREADS = 4
+NUMBER_OF_THREADS = 16
 FRESH_START = True
 
 

@@ -20,10 +20,24 @@ class PageRetrieval:
         #self.db = DatabaseInterface(database_lock)
         self.db = db
 
+        '''
+
         self.FRONTIER = ["http://evem.gov.si",
                          "http://e-prostor.gov.si",
                          "http://e-uprava.gov.si",
-                         "http://podatki.gov.si"]
+                         "http://podatki.gov.si"
+
+        '''
+
+        self.FRONTIER = ["http://evem.gov.si",
+                         "http://e-prostor.gov.si",
+                         "http://e-uprava.gov.si",
+                         "http://podatki.gov.si",
+                         "http://www.gov.si",
+                         "http://www.stopbirokraciji.gov.si",
+                         "http://www.ukom.gov.si",
+                         "http://www.gu.gov.si",
+                         "http://www.fu.gov.si"]
 
         self.FRONTIER_NEW = ["http://www.gov.si",
                              "http://www.stopbirokraciji.gov.si",
@@ -66,8 +80,9 @@ class PageRetrieval:
                 url = self.canonicalize(url)
                 url_test = self.get_site(url)
                 url_test = url_test[4:] if url_test.startswith("www.") else url_test
-                if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
-                        "https://" + url_test) in self.FRONTIER:
+                #if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
+                #        "https://" + url_test) in self.FRONTIER:
+                if ".gov.si" in url_test:
                     print(self.name + " is processing URL " + url)
                     website, current_url, status_code = self.download_website(url)
                     if website is None:
@@ -92,6 +107,9 @@ class PageRetrieval:
                         self.db.update_page_to_html(id=page_id, html_content=website, http_status_code=status_code, hash=minHash)
 
                     # only parse images from initial four domains; have to add http(s) to site and canonicalize beforehand
+
+                    '''
+                    
                     url_test = self.get_site(url)
                     url_test = url_test[4:] if url_test.startswith("www.") else url_test
                     if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
@@ -127,6 +145,9 @@ class PageRetrieval:
                                     self.db.add_page_data(page_id, document_type, document_data)
                                     # self.add_binary_page(url=document, site_id=site_id, from_id=page_id,
                                     #                     status_code=status_code, depth=depth)
+                                    
+                                    
+                    '''
 
             except:
                 print(self.name + " encountered a FATAL ERROR at URL " + url)
@@ -345,8 +366,9 @@ class PageRetrieval:
             url_test = self.get_site(link)
             if url_test is not None:
                 url_test = url_test[4:] if url_test.startswith("www.") else url_test
-                if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
-                        "https://" + url_test) in self.FRONTIER:
+                #if self.canonicalize("http://" + url_test) in self.FRONTIER or self.canonicalize(
+                #        "https://" + url_test) in self.FRONTIER:
+                if ".gov.si" in url_test:
 
                     site_data = self.db.find_site(self.get_site(link))
                     if len(site_data) == 0:
