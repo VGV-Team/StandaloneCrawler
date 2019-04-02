@@ -39,3 +39,13 @@ pip install psycopg2
 ```
 pip install lxml
 ```
+
+## How to run
+
+- Implementation in /crawler
+- Set up desired parameters in constants.py and crawler.py (and database.ini for custom database properties)
+- For first time you should run the crawler with FRESH_START set to True
+- You can start the crawler by running crawler.py
+
+## Remarks
+- [Other database backups](https://drive.google.com/open?id=1KnOVGFBAQ7l3gfGNgCxUExbxB_w-fSwc)
